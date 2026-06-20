@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@involynk/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

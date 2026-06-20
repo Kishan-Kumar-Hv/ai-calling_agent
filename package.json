@@ -1,0 +1,27 @@
+{
+  "name": "involynk-ai-calling",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api-gateway\" \"npm run dev:voice-pipeline\" \"npm run dev:call-orchestrator\" \"npm run dev:crm-sync\"",
+    "dev:api-gateway": "npm run dev -w apps/api-gateway",
+    "dev:voice-pipeline": "npm run dev -w apps/voice-pipeline",
+    "dev:call-orchestrator": "npm run dev -w apps/call-orchestrator",
+    "dev:crm-sync": "npm run dev -w apps/crm-sync",
+    "campaign": "ts-node-dev campaign_runner.ts",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "concurrently": "^10.0.3",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}
