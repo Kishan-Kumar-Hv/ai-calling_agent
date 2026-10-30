@@ -7,7 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:api-gateway\" \"npm run dev:voice-pipeline\" \"npm run dev:call-orchestrator\" \"npm run dev:crm-sync\"",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api-gateway\" \"npm run dev:voice-pipeline\" \"npm run dev:call-orchestrator\" \"npm run dev:crm-sync\"",
+    "dev:web": "npm run dev -w apps/web",
     "dev:api-gateway": "npm run dev -w apps/api-gateway",
     "dev:voice-pipeline": "npm run dev -w apps/voice-pipeline",
     "dev:call-orchestrator": "npm run dev -w apps/call-orchestrator",

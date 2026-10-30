@@ -24,7 +24,7 @@ export interface AgentSettingsOptions {
 }
 
 export function buildAgentSettingsMessage(opts: AgentSettingsOptions): object {
-  const geminiModel = opts.geminiModel ?? "gemini-3.1-flash-lite";
+  const geminiModel = opts.geminiModel ?? "gemini-3.5-flash-lite";
 
   const businessName = opts.businessName ?? "local business";
   const leadName = opts.leadName ?? "there";
