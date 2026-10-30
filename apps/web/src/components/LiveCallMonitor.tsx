@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { 
-  Radio, 
   Bot, 
   User as UserIcon, 
   MessageSquare, 
@@ -13,9 +12,9 @@ import {
   MicOff,
   Sparkles,
   Zap,
-  CheckCircle2,
-  VolumeX,
-  PhoneCall
+  PhoneCall,
+  Send,
+  Play
 } from "lucide-react";
 import { LiveCallSession, CallPhase, Shop } from "../types";
 import { api } from "../api/client";
@@ -41,7 +40,7 @@ const PHASES: CallPhase[] = [
   "CLOSE"
 ];
 
-type VoiceCallStatus = "connecting" | "agent_speaking" | "listening" | "analyzing";
+type CallStatus = "connecting" | "agent_speaking" | "listening" | "analyzing";
 
 export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   activeCall,
@@ -54,25 +53,32 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
 }) => {
   const [whisperInput, setWhisperInput] = useState("");
   const [currentDuration, setCurrentDuration] = useState(activeCall?.durationSec ?? 3);
-  const [audioFeedbackEnabled, setAudioFeedbackEnabled] = useState(true);
-  const [callVoiceStatus, setCallVoiceStatus] = useState<VoiceCallStatus>("connecting");
-  const [liveInterimSpeech, setLiveInterimSpeech] = useState("");
-  const [isMicMuted, setIsMicMuted] = useState(false);
-  const [micPermissionError, setMicPermissionError] = useState<string | null>(null);
+  const [callStatus, setCallStatus] = useState<CallStatus>("connecting");
+  const [liveSpeech, setLiveSpeech] = useState("");
+  const [micVolume, setMicVolume] = useState(0);
+  const [isMicReady, setIsMicReady] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [lastAgentText, setLastAgentText] = useState("");
 
   const recognitionRef = useRef<any>(null);
-  const transcriptBottomRef = useRef<HTMLDivElement>(null);
-  const hasSpokenGreetingRef = useRef(false);
-  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
   const silenceTimerRef = useRef<any>(null);
-  const callVoiceStatusRef = useRef<VoiceCallStatus>("connecting");
-  const isMicMutedRef = useRef(false);
-  const accumulatedSpeechRef = useRef<string>("");
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const transcriptBottomRef = useRef<HTMLDivElement>(null);
 
-  callVoiceStatusRef.current = callVoiceStatus;
-  isMicMutedRef.current = isMicMuted;
+  const callStatusRef = useRef<CallStatus>("connecting");
+  const isMutedRef = useRef(false);
+  const liveSpeechRef = useRef("");
 
-  // Auto-scroll transcript when new turns arrive
+  callStatusRef.current = callStatus;
+  isMutedRef.current = isMuted;
+  liveSpeechRef.current = liveSpeech;
+
+  // Auto-scroll transcript
   useEffect(() => {
     transcriptBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeCall?.transcript]);
@@ -86,146 +92,118 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
     return () => clearInterval(interval);
   }, [activeCall]);
 
-  // Helper to safely stop listening
-  const stopListening = useCallback(() => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch (e) {
-        // ignore
-      }
-    }
-  }, []);
-
-  // Helper to start continuous listening
-  const startListening = useCallback(() => {
-    if (isMicMutedRef.current) return;
-    if (!recognitionRef.current) return;
-
-    try {
-      recognitionRef.current.start();
-      setCallVoiceStatus("listening");
-      setLiveInterimSpeech("");
-      accumulatedSpeechRef.current = "";
-    } catch (e: any) {
-      // If already started, it's fine
-      if (!e.message?.includes("already started")) {
-        console.warn("[startListening] error:", e);
-      }
-    }
-  }, []);
-
-  // Helper to speak agent response via Deepgram Aura TTS with Web Speech fallback
-  const speakAgentResponse = useCallback(
+  // Play audio response using Deepgram Aura TTS with Web Speech fallback
+  const playAgentVoice = useCallback(
     async (text: string) => {
-      stopListening();
-      setCallVoiceStatus("agent_speaking");
+      setLastAgentText(text);
+      setCallStatus("agent_speaking");
 
-      if (!audioFeedbackEnabled) {
-        // If audio output is disabled, immediately resume listening
-        setTimeout(() => {
-          setCallVoiceStatus("listening");
-          startListening();
-        }, 500);
-        return;
+      // Pause mic recognition while agent is speaking to avoid hearing own voice
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
       }
 
+      const ttsUrl = `http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`;
+
       try {
-        // 1. High-fidelity Deepgram Aura Neural TTS (sub-200ms)
-        const res = await fetch("http://localhost:4000/api/voice/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, model: "aura-asteria-en" }),
-        });
+        if (activeAudioRef.current) {
+          activeAudioRef.current.pause();
+          activeAudioRef.current = null;
+        }
 
-        if (res.ok) {
-          const blob = await res.blob();
-          const audioUrl = URL.createObjectURL(blob);
-          if (audioPlayerRef.current) {
-            audioPlayerRef.current.pause();
-          }
-          const audio = new Audio(audioUrl);
-          audioPlayerRef.current = audio;
+        const audio = new Audio(ttsUrl);
+        activeAudioRef.current = audio;
 
-          audio.onplay = () => {
-            setCallVoiceStatus("agent_speaking");
-          };
+        audio.onended = () => {
+          setCallStatus("listening");
+          startMicListening();
+        };
 
-          audio.onended = () => {
-            // Once Riya finishes speaking, automatically open mic for customer's reply!
-            setCallVoiceStatus("listening");
-            startListening();
-          };
+        audio.onerror = () => {
+          console.warn("[Deepgram] Audio playback failed, using Web Speech fallback");
+          fallbackSpeak(text);
+        };
 
-          audio.onerror = () => {
-            console.warn("[Deepgram Audio] Playback failed, falling back to Web Speech");
-            fallbackWebSpeech(text);
-          };
-
-          await audio.play();
-          return;
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setAutoplayBlocked(false);
+            })
+            .catch((err) => {
+              console.warn("[Audio] Autoplay prevented by browser:", err.message);
+              setAutoplayBlocked(true);
+              fallbackSpeak(text);
+            });
         }
       } catch (err) {
-        console.warn("[Deepgram TTS] API failed, falling back to Web Speech:", err);
-      }
-
-      fallbackWebSpeech(text);
-    },
-    [audioFeedbackEnabled, startListening, stopListening]
-  );
-
-  const fallbackWebSpeech = useCallback(
-    (text: string) => {
-      if (!("speechSynthesis" in window)) {
-        setCallVoiceStatus("listening");
-        startListening();
-        return;
-      }
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.05;
-        utterance.pitch = 1.0;
-        const voices = window.speechSynthesis.getVoices();
-        const indianVoice = voices.find(
-          (v) => v.lang.includes("IN") || v.name.toLowerCase().includes("india")
-        );
-        if (indianVoice) utterance.voice = indianVoice;
-
-        utterance.onend = () => {
-          setCallVoiceStatus("listening");
-          startListening();
-        };
-        utterance.onerror = () => {
-          setCallVoiceStatus("listening");
-          startListening();
-        };
-
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {
-        setCallVoiceStatus("listening");
-        startListening();
+        console.warn("[TTS] Error starting audio:", err);
+        fallbackSpeak(text);
       }
     },
-    [startListening]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
+
+  const fallbackSpeak = useCallback((text: string) => {
+    if (!("speechSynthesis" in window)) {
+      setCallStatus("listening");
+      startMicListening();
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      const voices = window.speechSynthesis.getVoices();
+      const indianVoice = voices.find(
+        (v) => v.lang.includes("IN") || v.name.toLowerCase().includes("india")
+      );
+      if (indianVoice) utterance.voice = indianVoice;
+
+      utterance.onend = () => {
+        setCallStatus("listening");
+        startMicListening();
+      };
+      utterance.onerror = () => {
+        setCallStatus("listening");
+        startMicListening();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      setCallStatus("listening");
+      startMicListening();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Process customer voice turn through Gemini 3.5 Flash-Lite
-  const handleProcessCustomerTurn = useCallback(
+  const sendCustomerTurn = useCallback(
     async (speechText: string) => {
       if (!speechText.trim() || !activeCall) return;
 
-      const currentCustomerSpeech = speechText.trim();
-      stopListening();
-      setLiveInterimSpeech("");
-      setCallVoiceStatus("analyzing");
+      const currentSpeech = speechText.trim();
+      setLiveSpeech("");
+      liveSpeechRef.current = "";
+      setCallStatus("analyzing");
 
-      const customerTurnId = "t_cust_" + Date.now();
-      const timestampStr = new Date().toLocaleTimeString([], {
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+
+      const turnId = "t_cust_" + Date.now();
+      const timestamp = new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
@@ -241,10 +219,10 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
             transcript: [
               ...prev.transcript,
               {
-                id: customerTurnId,
+                id: turnId,
                 speaker: "customer",
-                text: currentCustomerSpeech,
-                timestamp: timestampStr,
+                text: currentSpeech,
+                timestamp,
               },
             ],
           };
@@ -252,10 +230,10 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
       }
 
       try {
-        // 2. Call Gemini Voice Pipeline to analyze speech & extract entities
+        // 2. Call Gemini Voice Pipeline
         const analysis = await api.sendVoiceTurn({
           shopId: selectedShop?.id,
-          customerSpeech: currentCustomerSpeech,
+          customerSpeech: currentSpeech,
           conversationHistory: activeCall.transcript.map((t) => ({
             speaker: t.speaker,
             text: t.text,
@@ -266,7 +244,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           leadPhoneNumber: activeCall.leadPhoneNumber,
         });
 
-        // 3. Update the active call state with Gemini's deep analysis
+        // 3. Update the active call state with Gemini's analysis
         if (onUpdateActiveCall) {
           onUpdateActiveCall((prev) => {
             if (!prev) return null;
@@ -299,140 +277,208 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           });
         }
 
-        // 4. Speak response aloud with Deepgram Aura (microphone resumes automatically upon audio finish!)
-        speakAgentResponse(analysis.agentResponse);
+        // 4. Speak response aloud with Deepgram Aura (resumes mic when audio finishes)
+        playAgentVoice(analysis.agentResponse);
       } catch (err: any) {
-        console.error("[LiveCallMonitor] Voice turn failed:", err);
-        const fallbackResponse = `Haan bilkul ${activeCall.leadName} ji! Maine aapke number pe catalog details bhej diya hai.`;
-        speakAgentResponse(fallbackResponse);
+        console.error("[sendCustomerTurn] failed:", err);
+        const fallback = `Haan bilkul ${activeCall.leadName} ji! Maine aapke number pe catalog bhej diya hai.`;
+        playAgentVoice(fallback);
       }
     },
-    [activeCall, onUpdateActiveCall, selectedShop?.id, speakAgentResponse, stopListening]
+    [activeCall, onUpdateActiveCall, playAgentVoice, selectedShop?.id]
   );
 
-  // Initialize Speech Recognition for continuous hands-free voice dialogue
-  useEffect(() => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  // Start speech recognition
+  const startMicListening = useCallback(() => {
+    if (isMutedRef.current) return;
+    if (!recognitionRef.current) return;
 
-    if (!SpeechRecognition) {
-      setMicPermissionError(
-        "Microphone voice recognition is not supported in this browser. Please use Google Chrome, Microsoft Edge, or Safari."
-      );
-      return;
+    try {
+      recognitionRef.current.start();
+      setCallStatus("listening");
+    } catch (e: any) {
+      if (!e.message?.includes("already started")) {
+        console.warn("[startMicListening] error:", e);
+      }
+    }
+  }, []);
+
+  // Initialize Microphone Hardware (getUserMedia) + SpeechRecognition
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function initAudioHardware() {
+      try {
+        setMicError(null);
+        // 1. Request microphone permission from the browser
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (isCancelled) return;
+
+        mediaStreamRef.current = stream;
+        setIsMicReady(true);
+
+        // 2. Attach AnalyserNode to measure real-time mic volume (VU meter)
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const audioCtx = new AudioContextClass();
+          audioContextRef.current = audioCtx;
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const updateVolume = () => {
+            if (isCancelled) return;
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              sum += dataArray[i];
+            }
+            const avg = sum / dataArray.length;
+            setMicVolume(Math.min(100, Math.round((avg / 128) * 100)));
+            animFrameRef.current = requestAnimationFrame(updateVolume);
+          };
+          updateVolume();
+        }
+
+        // 3. Setup Web Speech Recognition
+        const SpeechRecognition =
+          (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+        if (SpeechRecognition) {
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = "en-IN"; // English/Hindi/Hinglish
+
+          recognition.onresult = (event: any) => {
+            // Disregard if agent is speaking
+            if (callStatusRef.current === "agent_speaking" || isMutedRef.current) {
+              return;
+            }
+
+            let fullInterim = "";
+            let fullFinal = "";
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const text = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                fullFinal += text + " ";
+              } else {
+                fullInterim += text;
+              }
+            }
+
+            const currentSpoken = (fullFinal || fullInterim).trim();
+            if (currentSpoken) {
+              setLiveSpeech(currentSpoken);
+              liveSpeechRef.current = currentSpoken;
+            }
+
+            // VAD: When user pauses for 1.3 seconds, automatically send the spoken sentence!
+            if (silenceTimerRef.current) {
+              clearTimeout(silenceTimerRef.current);
+            }
+
+            if (currentSpoken.length > 2) {
+              silenceTimerRef.current = setTimeout(() => {
+                const speechToSend = liveSpeechRef.current || currentSpoken;
+                if (speechToSend && speechToSend.trim().length > 0) {
+                  sendCustomerTurn(speechToSend);
+                }
+              }, 1300);
+            }
+          };
+
+          recognition.onerror = (event: any) => {
+            if (event.error === "no-speech") return;
+            console.warn("[SpeechRecognition] error:", event.error);
+          };
+
+          recognition.onend = () => {
+            // Re-open if still in listening state
+            if (callStatusRef.current === "listening" && !isMutedRef.current) {
+              try {
+                recognition.start();
+              } catch (e) {}
+            }
+          };
+
+          recognitionRef.current = recognition;
+        }
+
+        // 4. Speak initial agent greeting once hardware is ready
+        if (
+          activeCall &&
+          activeCall.transcript.length === 1 &&
+          activeCall.transcript[0].speaker === "agent"
+        ) {
+          playAgentVoice(activeCall.transcript[0].text);
+        } else {
+          setCallStatus("listening");
+          if (recognitionRef.current) {
+            try {
+              recognitionRef.current.start();
+            } catch (e) {}
+          }
+        }
+      } catch (err: any) {
+        console.error("[initAudioHardware] error:", err);
+        setMicError(
+          "Microphone permission is required. Please click 'Allow' in your browser address bar to speak directly with Riya."
+        );
+      }
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-IN"; // Accurately captures Indian English, Hindi, and Hinglish
-
-    recognition.onresult = (event: any) => {
-      // If Riya is speaking or analyzing, disregard mic input to prevent echo
-      if (
-        callVoiceStatusRef.current === "agent_speaking" ||
-        callVoiceStatusRef.current === "analyzing" ||
-        isMicMutedRef.current
-      ) {
-        return;
-      }
-
-      let interim = "";
-      let final = "";
-
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const transcriptPart = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          final += transcriptPart;
-        } else {
-          interim += transcriptPart;
-        }
-      }
-
-      const activeText = (accumulatedSpeechRef.current + " " + final + " " + interim).trim();
-      if (activeText) {
-        setLiveInterimSpeech(activeText);
-      }
-
-      if (final) {
-        accumulatedSpeechRef.current = (accumulatedSpeechRef.current + " " + final).trim();
-      }
-
-      // Voice Activity Detection (VAD): If user pauses speaking for 1.2s, trigger AI response!
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-
-      const currentAccumulated = accumulatedSpeechRef.current || interim;
-      if (currentAccumulated.trim().length > 0) {
-        silenceTimerRef.current = setTimeout(() => {
-          const textToProcess = accumulatedSpeechRef.current || liveInterimSpeech;
-          accumulatedSpeechRef.current = "";
-          if (textToProcess && textToProcess.trim().length > 0) {
-            handleProcessCustomerTurn(textToProcess);
-          }
-        }, 1200);
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      if (event.error === "no-speech") {
-        // Normal silence timeout from browser, keep listening
-        return;
-      }
-      if (event.error === "not-allowed") {
-        setMicPermissionError(
-          "Microphone permission was denied. Please allow microphone in your browser to speak with Riya."
-        );
-        return;
-      }
-      console.warn("[SpeechRecognition] error:", event.error);
-    };
-
-    recognition.onend = () => {
-      // If call is still in listening mode, automatically restart to maintain live voice line
-      if (callVoiceStatusRef.current === "listening" && !isMicMutedRef.current) {
-        try {
-          recognition.start();
-        } catch (e) {
-          // ignore
-        }
-      }
-    };
-
-    recognitionRef.current = recognition;
+    initAudioHardware();
 
     return () => {
-      try {
-        recognition.abort();
-      } catch (e) {}
+      isCancelled = true;
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+      }
     };
-  }, [handleProcessCustomerTurn, liveInterimSpeech]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Auto-speak initial greeting when call connects, then open mic for customer
-  useEffect(() => {
-    if (
-      activeCall &&
-      activeCall.transcript.length === 1 &&
-      activeCall.transcript[0].speaker === "agent" &&
-      !hasSpokenGreetingRef.current
-    ) {
-      hasSpokenGreetingRef.current = true;
-      const timer = setTimeout(() => {
-        speakAgentResponse(activeCall.transcript[0].text);
-      }, 500);
-      return () => clearTimeout(timer);
+  const handleManualSendSpeech = () => {
+    if (!liveSpeech.trim()) return;
+    sendCustomerTurn(liveSpeech);
+  };
+
+  const handleManualDoneSpeaking = () => {
+    if (liveSpeech.trim()) {
+      sendCustomerTurn(liveSpeech);
     }
-  }, [activeCall?.callSid, speakAgentResponse]);
+  };
 
-  const toggleMicMute = () => {
-    if (isMicMuted) {
-      setIsMicMuted(false);
-      startListening();
+  const toggleMute = () => {
+    if (isMuted) {
+      setIsMuted(false);
+      isMutedRef.current = false;
+      startMicListening();
     } else {
-      setIsMicMuted(true);
-      stopListening();
-      setCallVoiceStatus("agent_speaking");
+      setIsMuted(true);
+      isMutedRef.current = true;
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+      setCallStatus("agent_speaking");
     }
   };
 
@@ -453,11 +499,11 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
     return (
       <div className="py-24 text-center rounded-2xl clean-panel p-8 max-w-2xl mx-auto space-y-3">
         <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-          <Radio className="w-7 h-7" />
+          <PhoneCall className="w-7 h-7" />
         </div>
-        <h3 className="text-lg font-bold text-slate-900">No Active Phone Call in Stream</h3>
+        <h3 className="text-lg font-bold text-slate-900">No Active Phone Call</h3>
         <p className="text-xs text-slate-500 max-w-md mx-auto">
-          The AI Voice SDR is on standby. Dial a lead from the missed calls queue or start an instant dial from the dashboard.
+          The AI Voice SDR is on standby. Dial a lead from the missed calls queue to start a live voice conversation.
         </p>
       </div>
     );
@@ -467,7 +513,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Call Info Card */}
+      {/* Top Header Card */}
       <div className="rounded-2xl clean-panel p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
@@ -482,20 +528,20 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live Conversational Call
+                  Live Conversational Line
                 </span>
                 <span className="font-mono text-xs text-slate-400">{activeCall.callSid}</span>
               </div>
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5">
-                Connected: <span className="text-blue-600">{activeCall.leadName}</span> ({activeCall.leadPhoneNumber})
+                Connected with: <span className="text-blue-600">{activeCall.leadName}</span> ({activeCall.leadPhoneNumber})
               </h2>
               <p className="text-xs text-slate-500">
-                Store: <span className="text-slate-800 font-semibold">{selectedShop?.name || activeCall.shopName}</span> • AI SDR: <span className="text-blue-700 font-semibold">{selectedShop?.aiSettings?.personaName || "Riya"}</span>
+                Store: <span className="text-slate-800 font-semibold">{selectedShop?.name || activeCall.shopName}</span> • Voice SDR: <span className="text-blue-700 font-semibold">{selectedShop?.aiSettings?.personaName || "Riya"}</span>
               </p>
             </div>
           </div>
 
-          {/* Controls */}
+          {/* Action Controls */}
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono">
               <span className="text-slate-500">Duration: </span>
@@ -503,28 +549,15 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
             </div>
 
             <button
-              onClick={toggleMicMute}
-              title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"}
+              onClick={toggleMute}
               className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center space-x-1.5 ${
-                isMicMuted
+                isMuted
                   ? "bg-rose-50 text-rose-700 border-rose-300"
                   : "bg-emerald-50 text-emerald-800 border-emerald-300"
               }`}
             >
-              {isMicMuted ? <MicOff className="w-4 h-4 text-rose-600" /> : <Mic className="w-4 h-4 text-emerald-600" />}
-              <span>{isMicMuted ? "Mic Muted" : "Mic Live"}</span>
-            </button>
-
-            <button
-              onClick={() => setAudioFeedbackEnabled(!audioFeedbackEnabled)}
-              title="Toggle AI Voice Audio Output"
-              className={`p-2 rounded-lg border text-xs font-medium transition ${
-                audioFeedbackEnabled
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                  : "bg-slate-50 text-slate-400 border-slate-200"
-              }`}
-            >
-              {audioFeedbackEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              {isMuted ? <MicOff className="w-4 h-4 text-rose-600" /> : <Mic className="w-4 h-4 text-emerald-600" />}
+              <span>{isMuted ? "Mic Muted" : "Mic Live"}</span>
             </button>
 
             <button
@@ -545,7 +578,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           </div>
         </div>
 
-        {/* Phase Timeline Stepper */}
+        {/* Phase Stepper */}
         <div className="mt-6 pt-5 border-t border-slate-100">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-2">
             <span>Conversational Phase Progress:</span>
@@ -575,75 +608,109 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         </div>
       </div>
 
-      {/* Permission Warning if Microphone Blocked */}
-      {micPermissionError && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center space-x-3">
-          <MicOff className="w-5 h-5 text-amber-600 shrink-0" />
+      {/* Browser Autoplay Notice (If browser prevented instant audio play) */}
+      {autoplayBlocked && (
+        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Volume2 className="w-4 h-4 text-blue-600 animate-pulse" />
+            <span>Click below to allow audio playback from Riya:</span>
+          </div>
+          <button
+            onClick={() => playAgentVoice(lastAgentText || activeCall.transcript[0]?.text || "Hello!")}
+            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center space-x-1.5"
+          >
+            <Play className="w-3.5 h-3.5" />
+            <span>Play Riya's Audio</span>
+          </button>
+        </div>
+      )}
+
+      {/* Mic Permission Warning */}
+      {micError && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center space-x-3">
+          <MicOff className="w-5 h-5 text-rose-600 shrink-0" />
           <div>
-            <p className="font-bold">Microphone Permission Needed for Real Voice Interaction</p>
-            <p className="text-amber-700">{micPermissionError}</p>
+            <p className="font-bold">Microphone Permission Required</p>
+            <p className="text-rose-700">{micError}</p>
           </div>
         </div>
       )}
 
-      {/* LIVE VOICE HUD: Hands-Free Voice Dialogue Center Stage */}
+      {/* LIVE VOICE HUD: True Conversational Voice Stage */}
       <div className={`rounded-2xl p-6 border transition-all ${
-        callVoiceStatus === "listening"
-          ? "bg-emerald-950/90 border-emerald-500 shadow-md text-white"
-          : callVoiceStatus === "analyzing"
-          ? "bg-amber-950/90 border-amber-500 shadow-md text-white"
-          : "bg-slate-900 border-blue-500 shadow-md text-white"
+        callStatus === "listening"
+          ? "bg-emerald-950/95 border-emerald-500 shadow-lg text-white"
+          : callStatus === "analyzing"
+          ? "bg-amber-950/95 border-amber-500 shadow-lg text-white"
+          : "bg-slate-900 border-blue-500 shadow-lg text-white"
       }`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center space-x-2">
-              <span className={`w-3 h-3 rounded-full ${
-                callVoiceStatus === "listening"
+            <div className="flex items-center space-x-2.5">
+              <span className={`w-3.5 h-3.5 rounded-full ${
+                callStatus === "listening"
                   ? "bg-emerald-400 animate-ping"
-                  : callVoiceStatus === "analyzing"
+                  : callStatus === "analyzing"
                   ? "bg-amber-400 animate-pulse"
                   : "bg-blue-400 animate-pulse"
               }`} />
-              <h3 className="text-sm font-extrabold uppercase tracking-wider font-mono">
-                {callVoiceStatus === "listening" && "Microphone Live — Speak Freely Now!"}
-                {callVoiceStatus === "analyzing" && "Riya is Analyzing Your Speech with Gemini 3.5..."}
-                {callVoiceStatus === "agent_speaking" && "Riya is Speaking (Deepgram Aura Audio)..."}
-                {callVoiceStatus === "connecting" && "Call Connecting..."}
+              <h3 className="text-base font-extrabold uppercase tracking-wide font-mono">
+                {callStatus === "listening" && "🎤 Microphone Live — Speak Freely Now!"}
+                {callStatus === "analyzing" && "⚡ Analyzing Your Words (Gemini 3.5)..."}
+                {callStatus === "agent_speaking" && "🔊 Riya is Speaking (Deepgram Aura Audio)..."}
+                {callStatus === "connecting" && "Initializing Audio Hardware..."}
               </h3>
             </div>
             <p className="text-xs text-slate-300">
-              {callVoiceStatus === "listening"
-                ? "Talk naturally into your microphone in English, Hindi, or Hinglish. Riya will automatically detect when you finish and reply out loud."
-                : callVoiceStatus === "analyzing"
-                ? "Extracting buyer entities, quantity, budget, and sentiment in sub-350ms..."
-                : "Deepgram Aura Neural Speech is playing through your speaker."}
+              {callStatus === "listening"
+                ? "Talk naturally into your microphone in English, Hindi, or Hinglish. Pause or click 'Done Speaking' to get Riya's reply."
+                : callStatus === "analyzing"
+                ? "Extracting buyer intent, quantity, and budget..."
+                : "Deepgram Aura Neural Audio is playing aloud through your speakers."}
             </p>
           </div>
 
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs font-mono shrink-0">
-            <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Deepgram Aura + Gemini 3.5</span>
+          <div className="flex items-center space-x-3 shrink-0">
+            {/* Real Hardware Mic VU Volume Level */}
+            <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs font-mono">
+              <Mic className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Mic Level: </span>
+              <div className="w-16 h-2 rounded-full bg-slate-800 overflow-hidden ml-1">
+                <div
+                  style={{ width: `${Math.max(5, micVolume)}%` }}
+                  className={`h-full transition-all duration-75 ${
+                    micVolume > 20 ? "bg-emerald-400" : "bg-slate-600"
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-[11px] font-mono text-emerald-400">
+              <Zap className="w-3.5 h-3.5" />
+              <span>Sub-350ms</span>
+            </div>
           </div>
         </div>
 
         {/* Dynamic Voice Waveform Animation */}
         <div className="flex items-center gap-1.5 h-12 pt-4 px-1">
           {Array.from({ length: 36 }).map((_, i) => {
-            const listeningHeights = [35, 80, 50, 95, 40, 90, 60, 100, 45, 85, 30, 75, 95, 40, 85, 60, 90, 50, 75, 95, 40, 80, 55, 90, 35, 70, 95, 45, 85, 60, 90, 40, 75, 85, 45, 65];
-            const speakingHeights = [20, 50, 30, 70, 40, 85, 50, 75, 35, 65, 25, 60, 80, 30, 70, 50, 80, 40, 65, 75, 30, 65, 45, 70, 25, 55, 75, 35, 70, 50, 75, 30, 60, 70, 35, 50];
-            const isListening = callVoiceStatus === "listening";
-            const h = isListening
-              ? listeningHeights[i % listeningHeights.length]
-              : speakingHeights[i % speakingHeights.length];
+            const isListening = callStatus === "listening";
+            // If listening, wave height reacts to real mic volume!
+            const dynamicHeight = isListening
+              ? Math.max(15, Math.min(100, (micVolume * 1.5) + ((i % 5) * 8)))
+              : [25, 60, 40, 80, 50, 90, 45, 75, 30, 65, 85, 40, 70, 95, 50, 80, 40, 65][i % 18];
 
             return (
               <div
                 key={i}
-                style={{ height: `${h}%` }}
-                className={`flex-1 rounded-full transition-all duration-150 ${
-                  callVoiceStatus === "listening"
-                    ? "bg-emerald-400 animate-pulse"
-                    : callVoiceStatus === "analyzing"
+                style={{ height: `${dynamicHeight}%` }}
+                className={`flex-1 rounded-full transition-all duration-75 ${
+                  callStatus === "listening"
+                    ? micVolume > 15
+                      ? "bg-emerald-300"
+                      : "bg-emerald-600"
+                    : callStatus === "analyzing"
                     ? "bg-amber-400"
                     : "bg-blue-400"
                 }`}
@@ -652,15 +719,34 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           })}
         </div>
 
-        {/* Live Spoken Speech Preview (Updates as words come out of your mouth) */}
-        {liveInterimSpeech && callVoiceStatus === "listening" && (
-          <div className="mt-4 p-3 rounded-xl bg-black/50 border border-emerald-500/40 text-xs text-emerald-200 flex items-center space-x-2">
-            <Mic className="w-4 h-4 text-emerald-400 animate-pulse shrink-0" />
-            <p className="italic">
-              Hearing you say: <strong className="text-white font-normal">"{liveInterimSpeech}"</strong>
-            </p>
+        {/* Live Hearing Words Box with Instant Done Speaking Button */}
+        <div className="mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex-1 flex items-center space-x-2 text-xs">
+            <Mic className={`w-4 h-4 shrink-0 ${callStatus === "listening" ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
+            {liveSpeech ? (
+              <p className="italic">
+                Hearing you say: <strong className="text-white not-italic font-bold">"{liveSpeech}"</strong>
+              </p>
+            ) : (
+              <p className="text-slate-400 text-xs">
+                {callStatus === "listening"
+                  ? "Start speaking... your words will appear here live."
+                  : "Microphone paused while Riya is responding."}
+              </p>
+            )}
           </div>
-        )}
+
+          {callStatus === "listening" && (
+            <button
+              onClick={handleManualDoneSpeaking}
+              disabled={!liveSpeech.trim()}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs transition flex items-center justify-center space-x-1.5 shadow-sm shrink-0"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Done Speaking / Send Voice</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Grid: Real-time Analysis & Turn-by-Turn Audio Transcript */}
@@ -741,7 +827,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                 <h3 className="font-bold text-slate-900 text-sm">Live Audio Transcript</h3>
               </div>
               <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                Hinglish / English / Hindi
+                Deepgram Aura + Gemini 3.5
               </span>
             </div>
 
@@ -770,11 +856,11 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                       {turn.speaker === "agent" && (
                         <button
                           type="button"
-                          onClick={() => speakAgentResponse(turn.text)}
+                          onClick={() => playAgentVoice(turn.text)}
                           title="Replay Voice Audio"
                           className="p-1 rounded hover:bg-blue-100 text-blue-600 transition"
                         >
-                          <Volume2 className="w-3 h-3" />
+                          <Volume2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                       <span className="text-slate-400">{turn.timestamp}</span>
@@ -796,10 +882,10 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                 </div>
               ))}
 
-              {callVoiceStatus === "analyzing" && (
+              {callStatus === "analyzing" && (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center space-x-2 animate-pulse">
                   <Sparkles className="w-4 h-4 text-amber-600 animate-spin" />
-                  <span>Gemini is analyzing your voice and synthesizing spoken response...</span>
+                  <span>Gemini is analyzing your voice & synthesizing spoken reply...</span>
                 </div>
               )}
               <div ref={transcriptBottomRef} />

@@ -164,10 +164,12 @@ router.post("/record", async (req: Request, res: Response) => {
   }
 });
 
-// Deepgram Aura Text-to-Speech Streaming Endpoint
-router.post("/tts", async (req: Request, res: Response) => {
+// Deepgram Aura Text-to-Speech Streaming Endpoint (POST & GET)
+const handleTtsRequest = async (req: Request, res: Response) => {
   try {
-    const { text, model = "aura-asteria-en" } = req.body;
+    const text = (req.method === "GET" ? req.query.text : req.body.text) as string;
+    const model = ((req.method === "GET" ? req.query.model : req.body.model) as string) || "aura-asteria-en";
+
     if (!text || !text.trim()) {
       res.status(400).json({ error: "text is required" });
       return;
@@ -178,13 +180,17 @@ router.post("/tts", async (req: Request, res: Response) => {
       "Content-Type": "audio/mpeg",
       "Content-Length": audioBuffer.length.toString(),
       "Cache-Control": "public, max-age=3600",
+      "Accept-Ranges": "bytes",
     });
     res.send(audioBuffer);
   } catch (err: any) {
     console.error("[voiceRoutes] TTS error:", err);
     res.status(500).json({ error: "TTS generation failed" });
   }
-});
+};
+
+router.post("/tts", handleTtsRequest);
+router.get("/tts", handleTtsRequest);
 
 // Deepgram Nova-2 Audio Transcription Endpoint
 router.post("/stt", async (req: Request, res: Response) => {
