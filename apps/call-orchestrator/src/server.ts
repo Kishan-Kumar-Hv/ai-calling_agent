@@ -9,6 +9,7 @@ import { shopRouter } from "./routes/shopRoutes";
 import { missedCallRouter } from "./routes/missedCallRoutes";
 import { adminRouter } from "./routes/adminRoutes";
 import { voiceRouter } from "./routes/voiceRoutes";
+import { Store } from "./models/Store";
 
 const app = express();
 app.use(express.json());
@@ -105,8 +106,22 @@ app.post("/calls/outbound", async (req, res) => {
     }
   }
 
-  const fromNumber = process.env.TWILIO_FROM_NUMBER;
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !fromNumber) {
+  let fromNumber = process.env.TWILIO_FROM_NUMBER;
+  let accountSid = process.env.TWILIO_ACCOUNT_SID;
+  let authToken = process.env.TWILIO_AUTH_TOKEN;
+
+  if (tenantId && isMongoConnected()) {
+    try {
+      const storeRecord = await Store.findById(tenantId);
+      if (storeRecord?.twilioConfig?.enabled && storeRecord?.twilioConfig?.phoneNumber) {
+        fromNumber = storeRecord.twilioConfig.phoneNumber;
+        if (storeRecord.twilioConfig.accountSid) accountSid = storeRecord.twilioConfig.accountSid;
+        if (storeRecord.twilioConfig.authToken) authToken = storeRecord.twilioConfig.authToken;
+      }
+    } catch (e) {}
+  }
+
+  if (!accountSid || !authToken || !fromNumber) {
     callCooldownMap.set(leadPhoneNumber, Date.now());
     res.json({
       callSid: `CA_voice_${Date.now()}`,
@@ -118,6 +133,7 @@ app.post("/calls/outbound", async (req, res) => {
   }
 
   try {
+    const activeTwilioClient = twilio(accountSid, authToken);
     const twiml = new twilio.twiml.VoiceResponse();
     const connect = twiml.connect();
     const stream = connect.stream({ url: VOICE_PIPELINE_WS_URL });
@@ -127,7 +143,7 @@ app.post("/calls/outbound", async (req, res) => {
     if (businessName) stream.parameter({ name: "businessName", value: businessName });
     if (observedLack) stream.parameter({ name: "observedLack", value: observedLack });
 
-    const call = await twilioClient.calls.create({
+    const call = await activeTwilioClient.calls.create({
       to: leadPhoneNumber,
       from: fromNumber,
       twiml: twiml.toString(),
@@ -136,7 +152,7 @@ app.post("/calls/outbound", async (req, res) => {
 
     callCooldownMap.set(leadPhoneNumber, Date.now());
 
-    res.json({ callSid: call.sid, status: call.status, priority: priority ?? "P0" });
+    res.json({ callSid: call.sid, status: call.status, priority: priority ?? "P0", mode: "twilio_pstn" });
   } catch (err) {
     console.error("[call-orchestrator] failed to place call", err);
     res.status(502).json({ error: "Failed to place outbound call" });

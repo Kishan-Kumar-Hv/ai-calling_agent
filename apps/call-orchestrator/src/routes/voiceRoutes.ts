@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
 import { Store } from "../models/Store";
 import { CallRecord } from "../models/CallRecord";
-import { processVoiceTurn, VoiceTurnRequest } from "../services/geminiVoiceAgent";
+import { MissedCall } from "../models/MissedCall";
+import { processVoiceTurn, VoiceTurnRequest, generatePostCallSummary } from "../services/geminiVoiceAgent";
 import { generateDeepgramSpeech, transcribeDeepgramAudio } from "../services/deepgramService";
 import { isMongoConnected } from "../db/mongo";
 
@@ -104,7 +105,29 @@ router.post("/turn", async (req: Request, res: Response) => {
   }
 });
 
-// Endpoint to save complete call session to MongoDB Atlas
+// Endpoint to summarize conversation transcript
+router.post("/summarize", async (req: Request, res: Response) => {
+  try {
+    const { transcript = [], storeName = "Retail Store", leadName = "Customer" } = req.body;
+    if (!transcript || transcript.length === 0) {
+      res.json({
+        executiveSummary: "Call ended with no conversational dialogue recorded.",
+        actionItems: ["Attempt callback during active hours"],
+        objectionsRaised: [],
+        outcome: "follow_up",
+        scoreBand: "WARM",
+      });
+      return;
+    }
+    const summary = await generatePostCallSummary(transcript, storeName, leadName);
+    res.json(summary);
+  } catch (err: any) {
+    console.error("[voiceRoutes] summarize error:", err);
+    res.status(500).json({ error: "Failed to generate call summary" });
+  }
+});
+
+// Endpoint to save complete call session with notes to MongoDB Atlas
 router.post("/record", async (req: Request, res: Response) => {
   try {
     const {
@@ -117,9 +140,13 @@ router.post("/record", async (req: Request, res: Response) => {
       scoreBand,
       durationSec,
       callOutcome,
-      transcript,
-      extractedEntities,
+      transcript = [],
+      extractedEntities = {},
+      callNotes,
+      actionItems,
+      objectionsRaised,
       whatsAppPushed,
+      twilioDetails,
     } = req.body;
 
     if (!isMongoConnected()) {
@@ -133,6 +160,26 @@ router.post("/record", async (req: Request, res: Response) => {
       return;
     }
 
+    // Generate comprehensive notes if not provided
+    let finalNotes = callNotes;
+    let finalActions = actionItems || [];
+    let finalObjections = objectionsRaised || [];
+    let finalOutcome = callOutcome;
+    let finalScoreBand = scoreBand || "HOT";
+
+    if (!finalNotes && transcript.length > 1) {
+      try {
+        const autoSum = await generatePostCallSummary(transcript, shop.name, leadName || "Customer");
+        finalNotes = autoSum.executiveSummary;
+        if (!finalActions.length) finalActions = autoSum.actionItems;
+        if (!finalObjections.length) finalObjections = autoSum.objectionsRaised;
+        if (!finalOutcome) finalOutcome = autoSum.outcome;
+        if (!scoreBand) finalScoreBand = autoSum.scoreBand;
+      } catch (e) {
+        finalNotes = `Call with ${leadName || "customer"} regarding ${extractedEntities?.intent || "store inquiry"} concluded.`;
+      }
+    }
+
     const record = await CallRecord.create({
       ownerId: shop.ownerId,
       shopId: shop._id,
@@ -143,21 +190,47 @@ router.post("/record", async (req: Request, res: Response) => {
       leadPhoneNumber: leadPhoneNumber || "+919999999999",
       phase: phase || "CLOSE",
       sentiment: sentiment || "positive",
-      scoreBand: scoreBand || "HOT",
+      scoreBand: finalScoreBand,
       durationSec: durationSec || 45,
-      callOutcome: callOutcome || "booked",
+      callOutcome: finalOutcome || "booked",
       transcript: transcript || [],
       extractedEntities: extractedEntities || {},
+      callNotes: finalNotes || "",
+      actionItems: finalActions,
+      objectionsRaised: finalObjections,
+      twilioDetails: twilioDetails || {},
       whatsAppPushed: Boolean(whatsAppPushed),
       whatsAppOpened: Boolean(whatsAppPushed),
     });
+
+    // Automatically update matching missed call in queue with notes and completion status
+    if (leadPhoneNumber) {
+      await MissedCall.findOneAndUpdate(
+        { shopId: shop._id, phoneNumber: leadPhoneNumber },
+        {
+          status: "completed",
+          duration: `${Math.floor((durationSec || 45) / 60)}m ${(durationSec || 45) % 60}s`,
+          outcome: finalOutcome || "booked",
+          scoreBand: finalScoreBand,
+          callNotes: finalNotes || "",
+          actionItems: finalActions,
+          lastCallAttempt: "Just now",
+        }
+      );
+    }
 
     // Update store metrics
     await Store.findByIdAndUpdate(shop._id, {
       $inc: { "metrics.totalMissedRecovered": 1 },
     });
 
-    res.status(201).json({ success: true, id: record._id.toString() });
+    res.status(201).json({
+      success: true,
+      id: record._id.toString(),
+      callNotes: finalNotes,
+      actionItems: finalActions,
+      callOutcome: finalOutcome,
+    });
   } catch (err: any) {
     console.error("[voiceRoutes] record error:", err);
     res.status(500).json({ error: "Failed to save call record" });

@@ -112,6 +112,13 @@ export function App() {
         timeline: "Diwali Season (Immediate)",
         budgetSignal: "Flexible",
       },
+      callNotes: call.callNotes || `Inbound missed call callback initiated for ${call.callerName} (${call.phoneNumber}). Initializing discovery on customer inquiry.`,
+      actionItems: call.actionItems && call.actionItems.length > 0 ? call.actionItems : [`Conduct discovery on customer inquiry`, `Qualify requirement timeline and budget`],
+      objectionsRaised: [],
+      twilioDetails: {
+        outboundNumber: selectedShop.twilioConfig?.enabled && selectedShop.twilioConfig?.phoneNumber ? selectedShop.twilioConfig.phoneNumber : "Browser Audio Gateway (+1-800-INVOLYNK)",
+        status: "in-progress"
+      },
       transcript: [
         {
           id: "t_init",
@@ -161,6 +168,10 @@ export function App() {
         transcript: activeCall.transcript,
         extractedEntities: activeCall.extractedEntities,
         whatsAppPushed: activeCall.whatsAppPushed,
+        callNotes: activeCall.callNotes,
+        actionItems: activeCall.actionItems,
+        objectionsRaised: activeCall.objectionsRaised,
+        twilioDetails: activeCall.twilioDetails,
       });
 
       // Refresh stores so metrics are synced with MongoDB Atlas
@@ -168,6 +179,12 @@ export function App() {
       setShops(refreshedShops || []);
       const updatedShop = refreshedShops.find((s) => s.id === selectedShop?.id);
       if (updatedShop) setSelectedShop(updatedShop);
+
+      // Refresh missed calls from MongoDB Atlas
+      if (selectedShop?.id) {
+        const refreshedCalls = await api.getMissedCalls(selectedShop.id);
+        setMissedCalls(refreshedCalls || []);
+      }
     } catch (err) {
       console.warn("[app] Failed to save call record:", err);
     }

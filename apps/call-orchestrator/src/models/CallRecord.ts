@@ -26,6 +26,14 @@ export interface ICallRecord extends Document {
     timeline?: string;
     intent?: string;
   };
+  callNotes?: string;
+  actionItems?: string[];
+  objectionsRaised?: string[];
+  twilioDetails?: {
+    fromNumber?: string;
+    status?: string;
+    recordingUrl?: string;
+  };
   whatsAppPushed: boolean;
   whatsAppOpened: boolean;
   createdAt: Date;
@@ -63,6 +71,14 @@ const CallRecordSchema = new Schema<ICallRecord>(
       budgetSignal: { type: String },
       timeline: { type: String },
       intent: { type: String },
+    },
+    callNotes: { type: String, default: "" },
+    actionItems: [{ type: String }],
+    objectionsRaised: [{ type: String }],
+    twilioDetails: {
+      fromNumber: { type: String },
+      status: { type: String },
+      recordingUrl: { type: String },
     },
     whatsAppPushed: { type: Boolean, default: false },
     whatsAppOpened: { type: Boolean, default: false },

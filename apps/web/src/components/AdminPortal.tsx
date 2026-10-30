@@ -23,6 +23,9 @@ import {
   Calendar,
   Send,
   Zap,
+  FileText,
+  CheckSquare,
+  Phone,
 } from "lucide-react";
 import { AdminTalk, AdminStats } from "../types";
 import { api } from "../api/client";
@@ -562,6 +565,70 @@ export const AdminPortal: React.FC = () => {
                       </span>
                       <span className="text-[10px] font-semibold bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded">
                         Opened by Client
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Executive Call Notes & Summary */}
+                  {selectedTalk.callNotes && (
+                    <div className="mt-3 p-3 bg-white rounded-lg border border-blue-100 shadow-2xs space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-slate-500 font-mono">
+                        <FileText className="w-3 h-3 text-blue-600" />
+                        <span>AI Executive Call Notes</span>
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {selectedTalk.callNotes}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Action Items */}
+                  {selectedTalk.actionItems && selectedTalk.actionItems.length > 0 && (
+                    <div className="mt-2.5 p-3 bg-emerald-50/70 rounded-lg border border-emerald-100 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-emerald-800 font-mono">
+                        <CheckSquare className="w-3 h-3 text-emerald-600" />
+                        <span>Action Items & Next Steps</span>
+                      </div>
+                      <ul className="space-y-1">
+                        {selectedTalk.actionItems.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-1.5 text-xs text-slate-700">
+                            <span className="text-emerald-600 font-bold">✓</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Objections Handled */}
+                  {selectedTalk.objectionsRaised && selectedTalk.objectionsRaised.length > 0 && (
+                    <div className="mt-2.5 p-2.5 bg-amber-50/70 rounded-lg border border-amber-200 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-amber-800 font-mono">
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        <span>Customer Objections Encountered</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedTalk.objectionsRaised.map((obj, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] font-medium bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-200"
+                          >
+                            {obj}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Twilio Telephony Line */}
+                  {selectedTalk.twilioDetails && (
+                    <div className="mt-2.5 flex items-center justify-between text-[11px] font-mono text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-blue-100">
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3 text-blue-600" />
+                        Line: {selectedTalk.twilioDetails.outboundNumber || "+1-800-INVOLYNK"}
+                      </span>
+                      <span className="text-blue-700 font-bold capitalize">
+                        {selectedTalk.twilioDetails.status || "Active"}
                       </span>
                     </div>
                   )}

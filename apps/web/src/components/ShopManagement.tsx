@@ -10,7 +10,11 @@ import {
   Bot, 
   AlertCircle, 
   CheckCircle,
-  Sliders
+  Sliders,
+  PhoneCall,
+  Radio,
+  Key,
+  Hash
 } from "lucide-react";
 import { Shop } from "../types";
 
@@ -42,8 +46,22 @@ export const ShopManagement: React.FC<ShopManagementProps> = ({
   const [newPersona, setNewPersona] = useState("Riya");
   const [newLanguage, setNewLanguage] = useState<Shop["aiSettings"]["language"]>("hinglish");
 
+  // Twilio Telephony configuration state
+  const [newTwilioPhone, setNewTwilioPhone] = useState("");
+  const [newTwilioSid, setNewTwilioSid] = useState("");
+  const [newTwilioToken, setNewTwilioToken] = useState("");
+  const [newTwilioEnabled, setNewTwilioEnabled] = useState(false);
+
   const handleEditClick = (shop: Shop) => {
-    setEditingShop({ ...shop });
+    setEditingShop({
+      ...shop,
+      twilioConfig: shop.twilioConfig || {
+        phoneNumber: shop.phone || "",
+        accountSid: "",
+        authToken: "",
+        enabled: false,
+      },
+    });
     setIsAddingNew(false);
   };
 
@@ -82,6 +100,12 @@ export const ShopManagement: React.FC<ShopManagementProps> = ({
         maxRetries: 3,
         callPacingSeconds: 8,
       },
+      twilioConfig: {
+        phoneNumber: newTwilioPhone || newPhone,
+        accountSid: newTwilioSid,
+        authToken: newTwilioToken,
+        enabled: newTwilioEnabled,
+      },
       metrics: {
         totalMissedRecovered: 0,
         conversionRate: 0,
@@ -93,6 +117,10 @@ export const ShopManagement: React.FC<ShopManagementProps> = ({
     onAddShop(created);
     setIsAddingNew(false);
     setNewShopName("");
+    setNewTwilioPhone("");
+    setNewTwilioSid("");
+    setNewTwilioToken("");
+    setNewTwilioEnabled(false);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -313,6 +341,61 @@ export const ShopManagement: React.FC<ShopManagementProps> = ({
                   </div>
                 </div>
 
+                {/* Twilio Telephony & Outbound Caller ID */}
+                <div className="pt-3 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs text-slate-900 flex items-center space-x-1.5 uppercase tracking-wider font-mono">
+                      <PhoneCall className="w-4 h-4 text-emerald-600" />
+                      <span>Twilio Outbound Calling & Caller ID</span>
+                    </h4>
+                    <label className="flex items-center space-x-2 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={newTwilioEnabled}
+                        onChange={(e) => setNewTwilioEnabled(e.target.checked)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      />
+                      <span className="font-semibold text-slate-700">Enable Real Twilio PSTN</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Twilio Outbound Phone #</label>
+                      <input
+                        type="text"
+                        value={newTwilioPhone}
+                        onChange={(e) => setNewTwilioPhone(e.target.value)}
+                        placeholder="+1 205 843 7812"
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Twilio Account SID</label>
+                      <input
+                        type="text"
+                        value={newTwilioSid}
+                        onChange={(e) => setNewTwilioSid(e.target.value)}
+                        placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Twilio Auth Token</label>
+                      <input
+                        type="password"
+                        value={newTwilioToken}
+                        onChange={(e) => setNewTwilioToken(e.target.value)}
+                        placeholder="••••••••••••••••••••••••••••••••"
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-xs"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    If disabled or unconfigured, the store will automatically route live calls through the zero-latency Browser Voice Gateway.
+                  </p>
+                </div>
+
                 <button
                   type="submit"
                   className="w-full mt-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-xs"
@@ -480,6 +563,101 @@ export const ShopManagement: React.FC<ShopManagementProps> = ({
                   </div>
                 </div>
 
+                {/* Twilio Telephony & Outbound Caller ID Settings */}
+                <div className="pt-3 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs text-slate-900 flex items-center space-x-1.5 uppercase tracking-wider font-mono">
+                      <PhoneCall className="w-4 h-4 text-emerald-600" />
+                      <span>Twilio Outbound Calling & Caller ID</span>
+                    </h4>
+                    <label className="flex items-center space-x-2 cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={editingShop.twilioConfig?.enabled || false}
+                        onChange={(e) =>
+                          setEditingShop({
+                            ...editingShop,
+                            twilioConfig: {
+                              phoneNumber: editingShop.twilioConfig?.phoneNumber || editingShop.phone,
+                              accountSid: editingShop.twilioConfig?.accountSid || "",
+                              authToken: editingShop.twilioConfig?.authToken || "",
+                              enabled: e.target.checked,
+                            },
+                          })
+                        }
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      />
+                      <span className="font-semibold text-slate-700">Enable Real Twilio Outbound</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Twilio Outbound Phone #</label>
+                      <input
+                        type="text"
+                        value={editingShop.twilioConfig?.phoneNumber || ""}
+                        onChange={(e) =>
+                          setEditingShop({
+                            ...editingShop,
+                            twilioConfig: {
+                              phoneNumber: e.target.value,
+                              accountSid: editingShop.twilioConfig?.accountSid || "",
+                              authToken: editingShop.twilioConfig?.authToken || "",
+                              enabled: editingShop.twilioConfig?.enabled || false,
+                            },
+                          })
+                        }
+                        placeholder="+1 205 843 7812"
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Twilio Account SID</label>
+                      <input
+                        type="text"
+                        value={editingShop.twilioConfig?.accountSid || ""}
+                        onChange={(e) =>
+                          setEditingShop({
+                            ...editingShop,
+                            twilioConfig: {
+                              phoneNumber: editingShop.twilioConfig?.phoneNumber || "",
+                              accountSid: e.target.value,
+                              authToken: editingShop.twilioConfig?.authToken || "",
+                              enabled: editingShop.twilioConfig?.enabled || false,
+                            },
+                          })
+                        }
+                        placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Twilio Auth Token</label>
+                      <input
+                        type="password"
+                        value={editingShop.twilioConfig?.authToken || ""}
+                        onChange={(e) =>
+                          setEditingShop({
+                            ...editingShop,
+                            twilioConfig: {
+                              phoneNumber: editingShop.twilioConfig?.phoneNumber || "",
+                              accountSid: editingShop.twilioConfig?.accountSid || "",
+                              authToken: e.target.value,
+                              enabled: editingShop.twilioConfig?.enabled || false,
+                            },
+                          })
+                        }
+                        placeholder="••••••••••••••••••••••••••••••••"
+                        className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-xs"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Calls placed to leads will carry this verified Twilio caller ID and route through Twilio Media Streams.
+                  </p>
+                </div>
+
                 <button
                   type="submit"
                   className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-xs flex items-center justify-center space-x-1.5"
@@ -569,6 +747,43 @@ export const ShopManagement: React.FC<ShopManagementProps> = ({
                   ) : (
                     <p className="text-xs text-slate-400 italic">No operational gaps reported for this branch.</p>
                   )}
+                </div>
+              </div>
+
+              {/* Twilio Telephony Line Status Panel */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 font-mono flex items-center space-x-1.5">
+                    <PhoneCall className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Outbound Twilio Telephony Line</span>
+                  </h4>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    selectedShop.twilioConfig?.enabled
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      : "bg-blue-100 text-blue-800 border border-blue-200"
+                  }`}>
+                    {selectedShop.twilioConfig?.enabled ? "Twilio PSTN Bridge Active" : "Browser HD Voice Active"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-mono">Caller ID / Number:</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      {selectedShop.twilioConfig?.phoneNumber || selectedShop.phone || "+1-800-INVOLYNK"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-mono">Twilio Account SID:</span>
+                    <span className="font-mono text-slate-600">
+                      {selectedShop.twilioConfig?.accountSid ? `${selectedShop.twilioConfig.accountSid.slice(0, 8)}••••••••` : "Default Shared Pool"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-mono">Calling Gateway:</span>
+                    <span className="font-semibold text-slate-700">
+                      {selectedShop.twilioConfig?.enabled ? "Global Twilio PSTN" : "Zero-Latency WebRTC"}
+                    </span>
+                  </div>
                 </div>
               </div>
 

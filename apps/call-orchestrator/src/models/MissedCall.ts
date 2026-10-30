@@ -14,6 +14,8 @@ export interface IMissedCall extends Document {
   duration?: string;
   outcome?: "booked" | "follow_up" | "not_interested" | "escalated";
   scoreBand?: "HOT" | "WARM" | "COLD" | "UNSCORED";
+  callNotes?: string;
+  actionItems?: string[];
   createdAt: Date;
 }
 
@@ -36,6 +38,8 @@ const MissedCallSchema = new Schema<IMissedCall>(
     duration: { type: String },
     outcome: { type: String, enum: ["booked", "follow_up", "not_interested", "escalated"] },
     scoreBand: { type: String, enum: ["HOT", "WARM", "COLD", "UNSCORED"], default: "UNSCORED" },
+    callNotes: { type: String, default: "" },
+    actionItems: [{ type: String }],
   },
   { timestamps: true }
 );

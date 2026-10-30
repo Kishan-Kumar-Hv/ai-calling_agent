@@ -33,6 +33,12 @@ export interface Shop {
     maxRetries: number;
     callPacingSeconds: number;
   };
+  twilioConfig?: {
+    phoneNumber?: string;
+    accountSid?: string;
+    authToken?: string;
+    enabled?: boolean;
+  };
   metrics: {
     totalMissedRecovered: number;
     conversionRate: number;
@@ -55,6 +61,8 @@ export interface MissedCall {
   duration?: string;
   outcome?: "booked" | "follow_up" | "not_interested" | "escalated";
   scoreBand?: LeadScoreBand;
+  callNotes?: string;
+  actionItems?: string[];
 }
 
 export interface CallTranscriptTurn {
@@ -88,6 +96,16 @@ export interface LiveCallSession {
     budgetSignal?: string;
     timeline?: string;
     intent?: string;
+  };
+  callNotes?: string;
+  actionItems?: string[];
+  objectionsRaised?: string[];
+  twilioMode?: "browser_voice" | "twilio_pstn";
+  twilioDetails?: {
+    outboundNumber?: string;
+    fromNumber?: string;
+    status?: string;
+    recordingUrl?: string;
   };
 }
 
@@ -130,6 +148,15 @@ export interface AdminTalk {
     budgetSignal?: string;
     timeline?: string;
     intent?: string;
+  };
+  callNotes?: string;
+  actionItems?: string[];
+  objectionsRaised?: string[];
+  twilioDetails?: {
+    outboundNumber?: string;
+    fromNumber?: string;
+    status?: string;
+    recordingUrl?: string;
   };
   createdAt: string;
 }

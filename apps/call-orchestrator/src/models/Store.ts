@@ -19,6 +19,12 @@ export interface IStore extends Document {
     maxRetries: number;
     callPacingSeconds: number;
   };
+  twilioConfig?: {
+    phoneNumber?: string;
+    accountSid?: string;
+    authToken?: string;
+    enabled?: boolean;
+  };
   metrics: {
     totalMissedRecovered: number;
     conversionRate: number;
@@ -54,6 +60,12 @@ const StoreSchema = new Schema<IStore>(
       transferNumber: { type: String, default: "+91 84319 80422" },
       maxRetries: { type: Number, default: 3 },
       callPacingSeconds: { type: Number, default: 8 },
+    },
+    twilioConfig: {
+      phoneNumber: { type: String, default: "" },
+      accountSid: { type: String, default: "" },
+      authToken: { type: String, default: "" },
+      enabled: { type: Boolean, default: false },
     },
     metrics: {
       totalMissedRecovered: { type: Number, default: 0 },
