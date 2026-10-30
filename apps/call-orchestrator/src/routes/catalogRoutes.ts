@@ -226,3 +226,4 @@ router.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
 });
 
 export { router as catalogRouter };
+

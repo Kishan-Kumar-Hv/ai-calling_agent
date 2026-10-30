@@ -85,7 +85,49 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     // In-memory isolated store list
-    const stores = inMemoryStores.get(ownerId) || [];
+    let stores = inMemoryStores.get(ownerId);
+    if (!stores || stores.length === 0) {
+      // Default sample store for this owner with Twilio enabled
+      stores = [
+        {
+          id: "6ae4f05f979babc314e06c24",
+          ownerId,
+          name: "Involynk Dry Fruits & Gourmet Retail",
+          category: "Dry Fruits & Spices",
+          phone: "+91 93539 02221",
+          address: "Indiranagar 100ft Road, Bengaluru, Karnataka 560038",
+          operatingHours: "09:30 AM - 09:30 PM (IST)",
+          bannerImage: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=80",
+          observedGaps: [
+            "High missed call rate during evening festival peak",
+            "No automated WhatsApp order callback during festival rush",
+          ],
+          aiSettings: {
+            personaName: "Riya",
+            language: "hinglish",
+            tone: "Friendly & Empathetic",
+            autoWhatsApp: true,
+            whatsappTemplate: "Hi {{name}}! Riya from {{shop_name}}. Sorry we missed your call. Here is our direct catalog: {{portfolio_url}}",
+            transferNumber: "+91 93539 02221",
+            maxRetries: 3,
+            callPacingSeconds: 8,
+          },
+          twilioConfig: {
+            phoneNumber: process.env.TWILIO_FROM_NUMBER || "+15752213417",
+            accountSid: process.env.TWILIO_ACCOUNT_SID || "",
+            authToken: process.env.TWILIO_AUTH_TOKEN || "",
+            enabled: true,
+          },
+          metrics: {
+            totalMissedRecovered: 142,
+            conversionRate: 68.4,
+            revenueSaved: "₹1,84,500",
+            avgLatencyMs: 340,
+          },
+        }
+      ];
+      inMemoryStores.set(ownerId, stores);
+    }
     res.json(stores);
   } catch (err) {
     console.error("[shops] list error", err);

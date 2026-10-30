@@ -45,3 +45,4 @@ const ProductSchema = new Schema<IProduct>(
 ProductSchema.index({ shopId: 1, isActive: 1 });
 
 export const Product = mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema);
+

@@ -492,3 +492,4 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({ selectedShop }) 
     </div>
   );
 };
+
