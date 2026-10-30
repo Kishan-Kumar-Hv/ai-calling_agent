@@ -6,6 +6,7 @@ import {
   PhoneOff, 
   PhoneForwarded, 
   Volume2, 
+  VolumeX,
   Activity, 
   Headphones,
   Mic,
@@ -79,6 +80,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   const [isMicReady, setIsMicReady] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [speakerMuted, setSpeakerMuted] = useState(true);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [lastAgentText, setLastAgentText] = useState("");
   const [sttLang, setSttLang] = useState<"en-IN" | "hi-IN">(
@@ -95,10 +97,12 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
 
   const callStatusRef = useRef<CallStatus>("connecting");
   const isMutedRef = useRef(false);
+  const speakerMutedRef = useRef(true);
   const liveSpeechRef = useRef("");
 
   callStatusRef.current = callStatus;
   isMutedRef.current = isMuted;
+  speakerMutedRef.current = speakerMuted;
   liveSpeechRef.current = liveSpeech;
 
   // Auto-scroll transcript
@@ -126,6 +130,16 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         try {
           recognitionRef.current.abort();
         } catch (e) {}
+      }
+
+      // If laptop speaker is muted (e.g. talking on phone directly), do not play through browser speaker
+      if (speakerMutedRef.current) {
+        const estimatedDurationMs = Math.min(Math.max(text.split(" ").length * 350, 1800), 5000);
+        setTimeout(() => {
+          setCallStatus("listening");
+          startMicListening();
+        }, estimatedDurationMs);
+        return;
       }
 
       const ttsUrl = `http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`;
@@ -171,7 +185,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   );
 
   const fallbackSpeak = useCallback((text: string) => {
-    if (!("speechSynthesis" in window)) {
+    if (speakerMutedRef.current || !("speechSynthesis" in window)) {
       setCallStatus("listening");
       startMicListening();
       return;
@@ -585,6 +599,26 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
             >
               {isMuted ? <MicOff className="w-4 h-4 text-rose-600" /> : <Mic className="w-4 h-4 text-emerald-600" />}
               <span>{isMuted ? "Mic Muted" : "Mic Live"}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const nextState = !speakerMuted;
+                setSpeakerMuted(nextState);
+                speakerMutedRef.current = nextState;
+                if (nextState && activeAudioRef.current) {
+                  activeAudioRef.current.pause();
+                }
+              }}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition flex items-center space-x-1.5 ${
+                speakerMuted
+                  ? "bg-amber-50 text-amber-800 border-amber-300"
+                  : "bg-blue-50 text-blue-800 border-blue-300"
+              }`}
+              title={speakerMuted ? "Laptop speaker is OFF (Audio heard on phone)" : "Laptop speaker is ON"}
+            >
+              {speakerMuted ? <VolumeX className="w-4 h-4 text-amber-600" /> : <Volume2 className="w-4 h-4 text-blue-600" />}
+              <span>{speakerMuted ? "Laptop Speaker: OFF (Phone Mode)" : "Laptop Speaker: ON"}</span>
             </button>
 
             <button
