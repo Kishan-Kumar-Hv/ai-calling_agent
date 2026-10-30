@@ -16,6 +16,12 @@ export interface IMissedCall extends Document {
   scoreBand?: "HOT" | "WARM" | "COLD" | "UNSCORED";
   callNotes?: string;
   actionItems?: string[];
+  callCount?: number;
+  priorityReason?: string;
+  priorityScore?: number;
+  queueRank?: number;
+  whatsAppAckSent?: boolean;
+  tieBreakWinner?: boolean;
   createdAt: Date;
 }
 
@@ -40,6 +46,12 @@ const MissedCallSchema = new Schema<IMissedCall>(
     scoreBand: { type: String, enum: ["HOT", "WARM", "COLD", "UNSCORED"], default: "UNSCORED" },
     callNotes: { type: String, default: "" },
     actionItems: [{ type: String }],
+    callCount: { type: Number, default: 1 },
+    priorityReason: { type: String, default: "Fresh Missed Call (<2m)" },
+    priorityScore: { type: Number, default: 100 },
+    queueRank: { type: Number, default: 1 },
+    whatsAppAckSent: { type: Boolean, default: false },
+    tieBreakWinner: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

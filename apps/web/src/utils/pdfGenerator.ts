@@ -281,3 +281,4 @@ export function openCallReportPdfInNewTab(data: CallReportData): void {
   const blobUrl = URL.createObjectURL(blob);
   window.open(blobUrl, "_blank");
 }
+

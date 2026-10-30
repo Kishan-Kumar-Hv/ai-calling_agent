@@ -63,6 +63,12 @@ export interface MissedCall {
   scoreBand?: LeadScoreBand;
   callNotes?: string;
   actionItems?: string[];
+  callCount?: number;
+  priorityReason?: string;
+  priorityScore?: number;
+  queueRank?: number;
+  whatsAppAckSent?: boolean;
+  tieBreakWinner?: boolean;
 }
 
 export interface CallTranscriptTurn {

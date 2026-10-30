@@ -135,6 +135,24 @@ export const api = {
     return res.json();
   },
 
+  async simulateConflict(shopId: string, shopName?: string, phoneA?: string, phoneB?: string): Promise<{ winner: MissedCall; runnerUp: MissedCall; tieBreakExplanation: string }> {
+    const res = await fetch(`${API_BASE}/missed-calls/simulate-conflict`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({ shopId, shopName, phoneA, phoneB }),
+    });
+    if (!res.ok) throw new Error("Failed to simulate conflict");
+    return res.json();
+  },
+
+  async ackWhatsApp(callId: string): Promise<void> {
+    await fetch(`${API_BASE}/missed-calls/ack-whatsapp`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({ callId }),
+    });
+  },
+
   // Admin Portal (Global Platform Visibility across all stores & owners)
   async getAdminTalks(filters?: {
     search?: string;

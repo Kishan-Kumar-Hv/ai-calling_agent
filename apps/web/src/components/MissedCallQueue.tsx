@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   PhoneMissed, 
   Play, 
@@ -7,20 +7,24 @@ import {
   AlertTriangle, 
   Clock, 
   Filter, 
-  CheckCircle,
-  Plus,
-  Flame,
-  UserCheck,
-  FileText,
-  X,
-  CheckSquare,
-  Sparkles,
-  MessageSquare,
-  Download,
-  Printer
+  CheckCircle, 
+  Plus, 
+  Flame, 
+  UserCheck, 
+  FileText, 
+  X, 
+  CheckSquare, 
+  Sparkles, 
+  MessageSquare, 
+  Download, 
+  Zap, 
+  Trophy, 
+  Send, 
+  ArrowRight,
+  Layers
 } from "lucide-react";
 import { MissedCall, Shop } from "../types";
-import { downloadCallReportPdf, openCallReportPdfInNewTab } from "../utils/pdfGenerator";
+import { downloadCallReportPdf } from "../utils/pdfGenerator";
 import { api } from "../api/client";
 
 interface MissedCallQueueProps {
@@ -46,11 +50,21 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
   const [showSimModal, setShowSimModal] = useState(false);
   const [selectedCallForNotes, setSelectedCallForNotes] = useState<MissedCall | null>(null);
 
+  // Tie-Break Contention Simulation State
+  const [isSimulatingConflict, setIsSimulatingConflict] = useState(false);
+  const [conflictResult, setConflictResult] = useState<{
+    winner: MissedCall;
+    runnerUp: MissedCall;
+    tieBreakExplanation: string;
+  } | null>(null);
+
   if (!selectedShop) {
     return (
       <div className="py-16 text-center clean-panel rounded-2xl max-w-xl mx-auto p-8 space-y-3">
         <h3 className="text-lg font-bold text-slate-800">No Store Selected</h3>
-        <p className="text-xs text-slate-500">Please create or select an active store branch to inspect its missed call queue.</p>
+        <p className="text-xs text-slate-500">
+          Please create or select an active store branch to inspect its missed call queue.
+        </p>
       </div>
     );
   }
@@ -75,9 +89,34 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
       timestamp: "Just now (< 30s ago)",
       priority: "P0",
       status: "pending",
+      priorityReason: "Fresh Missed Call (<2m)",
+      priorityScore: 100,
+      callCount: 1,
     };
     onAddMissedCall(newCall);
     setShowSimModal(false);
+  };
+
+  // Simulate 2 Simultaneous Inbound Calls Arriving at the Exact Same Second (T0)
+  const handleSimulateConflict = async () => {
+    try {
+      setIsSimulatingConflict(true);
+      const res = await api.simulateConflict(selectedShop.id, selectedShop.name);
+      onAddMissedCall(res.winner);
+      onAddMissedCall(res.runnerUp);
+      setConflictResult(res);
+    } catch (err: any) {
+      console.error("[simulateConflict] error", err);
+    } finally {
+      setIsSimulatingConflict(false);
+    }
+  };
+
+  const handlePushWhatsAppStandby = async (call: MissedCall) => {
+    try {
+      await api.ackWhatsApp(call.id);
+      call.whatsAppAckSent = true;
+    } catch (e) {}
   };
 
   const handleExportCallPdf = async (call: MissedCall) => {
@@ -117,6 +156,24 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
     }
   };
 
+  // Auto-Dialer Engine with Pacing
+  useEffect(() => {
+    let timer: any = null;
+    if (autoDialActive && selectedShop) {
+      const pendingCalls = filteredCalls.filter((c) => c.status === "pending");
+      if (pendingCalls.length > 0) {
+        const nextCall = pendingCalls[0];
+        timer = setTimeout(() => {
+          onTriggerCall(nextCall);
+          if (pendingCalls.length > 1) {
+            handlePushWhatsAppStandby(pendingCalls[1]);
+          }
+        }, 1500);
+      }
+    }
+    return () => clearTimeout(timer);
+  }, [autoDialActive, filteredCalls.length]);
+
   return (
     <div className="space-y-6">
       {/* Top Banner / Regulator Status */}
@@ -124,7 +181,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
         <div>
           <div className="flex items-center space-x-3">
             <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              Missed Call Regulation Queue
+              Missed Call Regulation & Tie-Breaking Queue
             </h2>
             <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
               {pendingCount} Pending Recovery
@@ -140,18 +197,28 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
             )}
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Incoming customer rings missed at <strong className="text-slate-800">{selectedShop.name}</strong> are prioritized by intent, checked against 72h anti-spam cooldown, and dialed.
+            Incoming missed calls at <strong className="text-slate-800">{selectedShop.name}</strong> are evaluated by the deterministic tie-breaking engine (<span className="font-mono text-blue-700">P0 &gt; Repeat Frequency &gt; Commercial Intent &gt; FIFO</span>) and dialed with zero lead leakage.
           </p>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleSimulateConflict}
+            disabled={isSimulatingConflict}
+            className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-300 font-bold text-xs transition-all flex items-center space-x-1.5 shadow-2xs"
+            title="Simulate 2 calls arriving at the exact same second to verify tie-breaking and WhatsApp redundancy"
+          >
+            <Layers className="w-3.5 h-3.5 text-purple-600" />
+            <span>Simulate 2 Simultaneous Calls</span>
+          </button>
+
           <button
             onClick={() => setShowSimModal(true)}
             className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-xs text-slate-800 font-semibold transition-all flex items-center space-x-1.5 shadow-2xs"
           >
             <Plus className="w-4 h-4 text-blue-600" />
-            <span>Simulate Incoming Missed Call</span>
+            <span>Add Inbound Call</span>
           </button>
 
           <button
@@ -170,41 +237,104 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
             ) : (
               <>
                 <Play className="w-4 h-4" />
-                <span>Resume Auto-Dialer (P0 First)</span>
+                <span>Start Auto-Dialer (#1 First)</span>
               </>
             )}
           </button>
         </div>
       </div>
 
+      {/* Tie-Breaking Live Conflict Simulation Banner (Visible when conflict is tested) */}
+      {conflictResult && (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-900 to-indigo-950 border border-purple-500 shadow-xl text-white space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+            <div className="flex items-center space-x-2">
+              <Trophy className="w-5 h-5 text-amber-400" />
+              <h3 className="font-extrabold text-sm tracking-wide">
+                Simultaneous Contention Resolution @ T0 (2 Inbound Calls Arrived at Exact Same Second)
+              </h3>
+            </div>
+            <button
+              onClick={() => setConflictResult(null)}
+              className="text-slate-300 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            {/* Winner */}
+            <div className="p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-400 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-300 font-mono uppercase text-[10px] flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  🏆 TIE-BREAK WINNER • RANK #1 (DIALING NEXT)
+                </span>
+                <span className="font-mono text-emerald-300 font-bold bg-emerald-900/60 px-2 py-0.5 rounded">
+                  Score: {conflictResult.winner.priorityScore}
+                </span>
+              </div>
+              <p className="text-white font-extrabold text-sm">{conflictResult.winner.callerName}</p>
+              <p className="text-emerald-200 font-mono text-[11px]">{conflictResult.winner.phoneNumber}</p>
+              <p className="text-emerald-100/80 text-[11px] pt-1">
+                Reason: {conflictResult.winner.priorityReason}
+              </p>
+            </div>
+
+            {/* Runner-Up */}
+            <div className="p-3.5 rounded-xl bg-blue-950/80 border border-blue-400 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-blue-300 font-mono uppercase text-[10px] flex items-center gap-1">
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
+                  RUNNER-UP • RANK #2 (WHATSAPP STANDBY REDUNDANCY)
+                </span>
+                <span className="font-mono text-blue-300 font-bold bg-blue-900/60 px-2 py-0.5 rounded">
+                  Score: {conflictResult.runnerUp.priorityScore}
+                </span>
+              </div>
+              <p className="text-white font-extrabold text-sm">{conflictResult.runnerUp.callerName}</p>
+              <p className="text-blue-200 font-mono text-[11px]">{conflictResult.runnerUp.phoneNumber}</p>
+              <p className="text-blue-100/90 text-[11px] pt-1 flex items-center gap-1 font-semibold">
+                <span>✓ Instant WhatsApp Standby Sent:</span>
+                <span className="italic font-normal">"AI on short call, ringing you in 60s! Here is our catalog..."</span>
+              </p>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-300 italic pt-1">
+            <strong>Rule Applied:</strong> {conflictResult.tieBreakExplanation}
+          </p>
+        </div>
+      )}
+
       {/* Enterprise Guarantees Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl clean-panel flex items-start space-x-3">
-          <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <Trophy className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-xs font-bold text-slate-900">72-Hour Anti-Spam Cooldown</h4>
+            <h4 className="text-xs font-bold text-slate-900">Deterministic Tie-Breaking Engine</h4>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Blocks repeat dials within 72 hours to prevent carrier spam flags and Truecaller negative ratings.
+              When 2 calls arrive simultaneously, Involynk scores priority by: <strong className="text-slate-700">P0 &gt; Repeat Frequency (2x) &gt; Commercial Intent &gt; FIFO</strong>.
             </p>
           </div>
         </div>
 
         <div className="p-4 rounded-xl clean-panel flex items-start space-x-3">
-          <Flame className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+          <MessageSquare className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-xs font-bold text-slate-900">P0 Inbound Queue Jumping</h4>
+            <h4 className="text-xs font-bold text-slate-900">Multi-Channel WhatsApp Redundancy</h4>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Fresh missed calls (&lt; 2 mins old) bypass background queues for an immediate sub-30s callback.
+              While the #1 call is being dialed, the #2 runner-up is instantly sent a WhatsApp standby brochure so no customer drops off.
             </p>
           </div>
         </div>
 
         <div className="p-4 rounded-xl clean-panel flex items-start space-x-3">
-          <UserCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-xs font-bold text-slate-900">Per-Store Database Storage</h4>
+            <h4 className="text-xs font-bold text-slate-900">TRAI & 72h Cooldown Shield</h4>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Call summaries, customer objections, and WhatsApp delivery logs are stored in this outlet's database.
+              Automated calls run strictly between 9:30 AM–7:30 PM IST with 72h anti-spam blocks against Truecaller flagging.
             </p>
           </div>
         </div>
@@ -243,11 +373,11 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-mono text-[10px]">
               <tr>
-                <th className="py-3 px-4">Priority</th>
+                <th className="py-3 px-4">Priority & Tie-Break Rank</th>
                 <th className="py-3 px-4">Caller / Customer</th>
                 <th className="py-3 px-4">Phone Number</th>
-                <th className="py-3 px-4">Missed At</th>
-                <th className="py-3 px-4">Cooldown & Compliance</th>
+                <th className="py-3 px-4">Missed At & Repeat Rings</th>
+                <th className="py-3 px-4">Multi-Channel Redundancy</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Autonomous Action</th>
               </tr>
@@ -260,31 +390,64 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredCalls.map((call) => (
+                filteredCalls.map((call, idx) => (
                   <tr key={call.id} className="hover:bg-slate-50/70 transition-colors">
-                    {/* Priority Tier */}
+                    {/* Priority Tier & Tie-Break Rank */}
                     <td className="py-3 px-4">
-                      {call.priority === "P0" && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1 w-max">
-                          <Flame className="w-3 h-3 text-rose-600" />
-                          <span>P0 (URGENT)</span>
-                        </span>
-                      )}
-                      {call.priority === "P1" && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 w-max block font-mono">
-                          P1 (WARM)
-                        </span>
-                      )}
-                      {call.priority === "P2" && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 w-max block font-mono">
-                          P2 (STANDARD)
-                        </span>
-                      )}
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-1.5">
+                          {call.status === "pending" && (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-extrabold flex items-center space-x-1 font-mono ${
+                                idx === 0 || call.queueRank === 1
+                                  ? "bg-emerald-600 text-white shadow-2xs"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {idx === 0 || call.queueRank === 1 ? (
+                                <>
+                                  <Trophy className="w-3 h-3 text-amber-300" />
+                                  <span>RANK #1 (NEXT)</span>
+                                </>
+                              ) : (
+                                <span>RANK #{call.queueRank || idx + 1}</span>
+                              )}
+                            </span>
+                          )}
+
+                          {call.priority === "P0" && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+                              P0 URGENT
+                            </span>
+                          )}
+                          {call.priority === "P1" && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 font-mono">
+                              P1 WARM
+                            </span>
+                          )}
+                          {call.priority === "P2" && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                              P2 STD
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          Score: <strong className="text-slate-800">{call.priorityScore || (call.priority === "P0" ? 100 : 50)}</strong> • {call.priorityReason || "Fresh Missed Call"}
+                        </div>
+                      </div>
                     </td>
 
                     {/* Caller Name */}
-                    <td className="py-3 px-4 font-semibold text-slate-800">
-                      {call.callerName}
+                    <td className="py-3 px-4">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="font-semibold text-slate-900">{call.callerName}</span>
+                        {(call.callCount || 1) > 1 && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 font-mono">
+                            {call.callCount}x Rings
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Phone Number */}
@@ -298,18 +461,23 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                       <span>{call.timestamp}</span>
                     </td>
 
-                    {/* Cooldown Status */}
+                    {/* Multi-Channel Redundancy Status */}
                     <td className="py-3 px-4">
-                      {call.status === "cooldown_blocked" ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200 flex items-center space-x-1 w-max">
-                          <AlertTriangle className="w-3 h-3 text-rose-600" />
-                          <span>{call.cooldownUntil ?? "Cooldown Active"}</span>
+                      {call.whatsAppAckSent ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center space-x-1 w-max">
+                          <MessageSquare className="w-3 h-3 text-emerald-600" />
+                          <span>WhatsApp Standby ✓</span>
                         </span>
+                      ) : call.status === "pending" ? (
+                        <button
+                          onClick={() => handlePushWhatsAppStandby(call)}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center space-x-1"
+                        >
+                          <Send className="w-2.5 h-2.5 text-slate-500" />
+                          <span>Push Standby WA</span>
+                        </button>
                       ) : (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center space-x-1 w-max">
-                          <CheckCircle className="w-3 h-3 text-emerald-600" />
-                          <span>Verified • Ready to Call</span>
-                        </span>
+                        <span className="text-[11px] text-slate-400">Verified & Synced</span>
                       )}
                     </td>
 
@@ -344,10 +512,14 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                       {call.status === "pending" ? (
                         <button
                           onClick={() => onTriggerCall(call)}
-                          className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition-all flex items-center space-x-1 ml-auto"
+                          className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center space-x-1 ml-auto ${
+                            idx === 0 || call.queueRank === 1
+                              ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                              : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
+                          }`}
                         >
-                          <Play className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Dial with AI</span>
+                          <Play className="w-3.5 h-3.5" />
+                          <span>{idx === 0 || call.queueRank === 1 ? "Dial Winner (#1)" : "Dial with AI"}</span>
                         </button>
                       ) : call.status === "completed" ? (
                         <div className="flex items-center justify-end space-x-1.5">
@@ -383,7 +555,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Manual Inbound Missed Call Simulation Modal */}
       {showSimModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 p-6 space-y-4 shadow-xl">
@@ -392,7 +564,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
               <span>Simulate Customer Inbound Missed Call</span>
             </h3>
             <p className="text-xs text-slate-500">
-              Enqueues an incoming missed ring for <strong className="text-slate-800">{selectedShop.name}</strong> to watch the AI prioritize it as P0 and trigger the callback!
+              Enqueues an incoming missed ring for <strong className="text-slate-800">{selectedShop.name}</strong> to evaluate its priority score and queue position!
             </p>
 
             <form onSubmit={handleSimulateMissedCall} className="space-y-3 text-xs">
@@ -403,6 +575,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                   required
                   value={simName}
                   onChange={(e) => setSimName(e.target.value)}
+                  placeholder="e.g. Ramesh Patel (Wholesale Gifting)"
                   className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 focus:outline-none focus:border-blue-500 shadow-xs"
                 />
               </div>
@@ -414,6 +587,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                   required
                   value={simPhone}
                   onChange={(e) => setSimPhone(e.target.value)}
+                  placeholder="+91 84319 80422"
                   className="w-full px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 font-mono focus:outline-none focus:border-blue-500 shadow-xs"
                 />
               </div>
@@ -430,7 +604,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                   type="submit"
                   className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-xs"
                 >
-                  Enqueue as P0 Urgent
+                  Enqueue Inbound Ring
                 </button>
               </div>
             </form>
@@ -463,7 +637,6 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
             </div>
 
             <div className="space-y-4 text-xs">
-              {/* Executive Summary */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
                 <span className="font-bold text-slate-800 uppercase tracking-wider font-mono text-[10px] block">
                   Executive Call Summary & Intent
@@ -473,7 +646,6 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                 </p>
               </div>
 
-              {/* Action Items */}
               <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100 space-y-2">
                 <span className="font-bold text-emerald-900 uppercase tracking-wider font-mono text-[10px] block flex items-center gap-1">
                   <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
@@ -493,7 +665,6 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
                 )}
               </div>
 
-              {/* Status and Score Band */}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                   <span className="text-[10px] text-slate-400 uppercase font-mono block">Call Outcome</span>
