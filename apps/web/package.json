@@ -9,6 +9,7 @@
     "preview": "vite preview --port 3001"
   },
   "dependencies": {
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.16.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -24,4 +25,3 @@
     "vite": "^5.3.1"
   }
 }
-

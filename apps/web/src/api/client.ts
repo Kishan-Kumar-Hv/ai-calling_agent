@@ -196,5 +196,17 @@ export const api = {
     if (!res.ok) throw new Error("Failed to save call record");
     return res.json();
   },
+
+  async getCallDetail(params: { phone?: string; callSid?: string; shopId?: string }) {
+    const q = new URLSearchParams();
+    if (params.phone) q.append("phone", params.phone);
+    if (params.callSid) q.append("callSid", params.callSid);
+    if (params.shopId) q.append("shopId", params.shopId);
+    const res = await fetch(`${API_BASE}/voice/detail?${q.toString()}`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  },
 };
 

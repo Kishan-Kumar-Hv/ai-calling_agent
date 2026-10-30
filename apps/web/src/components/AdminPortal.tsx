@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { AdminTalk, AdminStats } from "../types";
 import { api } from "../api/client";
+import { downloadCallReportPdf } from "../utils/pdfGenerator";
 
 export const AdminPortal: React.FC = () => {
   const [talks, setTalks] = useState<AdminTalk[]>([]);
@@ -443,10 +444,34 @@ export const AdminPortal: React.FC = () => {
                       <p className="text-xs text-slate-500">{selectedTalk.leadPhoneNumber}</p>
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-right flex flex-col items-end gap-1.5">
                       <span className="text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider text-blue-700 bg-blue-100 border border-blue-200">
                         Phase: {selectedTalk.phase}
                       </span>
+                      <button
+                        onClick={() =>
+                          downloadCallReportPdf({
+                            shopName: selectedTalk.shopName,
+                            leadName: selectedTalk.leadName,
+                            leadPhoneNumber: selectedTalk.leadPhoneNumber,
+                            callSid: selectedTalk.callSid,
+                            duration: selectedTalk.durationSec,
+                            outcome: selectedTalk.callOutcome,
+                            scoreBand: selectedTalk.scoreBand,
+                            callNotes: selectedTalk.callNotes,
+                            actionItems: selectedTalk.actionItems,
+                            objectionsRaised: selectedTalk.objectionsRaised,
+                            extractedEntities: selectedTalk.extractedEntities,
+                            transcript: selectedTalk.transcript,
+                            date: new Date(selectedTalk.createdAt).toLocaleString(),
+                          })
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs transition"
+                        title="Export Full Call Audit as PDF"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Export PDF</span>
+                      </button>
                     </div>
                   </div>
 

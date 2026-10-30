@@ -237,6 +237,33 @@ router.post("/record", async (req: Request, res: Response) => {
   }
 });
 
+// Endpoint to fetch full recorded call details for PDF generation & inspection
+router.get("/detail", async (req: Request, res: Response) => {
+  try {
+    const { phone, callSid, shopId } = req.query;
+    if (!isMongoConnected()) {
+      res.status(503).json({ error: "Database unavailable" });
+      return;
+    }
+    const filter: any = {};
+    if (callSid) filter.callSid = callSid;
+    else if (phone) {
+      const digits = (phone as string).replace(/\D/g, "").slice(-10);
+      const flexiblePattern = digits.split("").join("\\s*");
+      filter.leadPhoneNumber = { $regex: flexiblePattern, $options: "i" };
+      if (shopId) filter.shopId = shopId;
+    }
+    const record = await CallRecord.findOne(filter).sort({ createdAt: -1 });
+    if (!record) {
+      res.status(404).json({ error: "Call record not found" });
+      return;
+    }
+    res.json(record);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to retrieve call detail" });
+  }
+});
+
 // Deepgram Aura Text-to-Speech Streaming Endpoint (POST & GET)
 const handleTtsRequest = async (req: Request, res: Response) => {
   try {
