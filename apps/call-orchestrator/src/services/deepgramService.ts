@@ -41,7 +41,26 @@ export async function transcribeDeepgramAudio(
   audioBuffer: Buffer,
   contentType: string = "audio/webm"
 ): Promise<{ transcript: string; confidence: number }> {
-  const url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true";
+  const keywords = [
+    "dry fruits:2",
+    "hampers:2",
+    "kaju:2",
+    "badam:2",
+    "pista:2",
+    "Diwali:2",
+    "boxes:2",
+    "Indiranagar:2",
+    "wholesale:2",
+    "discount:2",
+    "catalog:2",
+    "WhatsApp:2",
+    "namaste:2",
+    "price:2",
+  ]
+    .map((k) => `keywords=${encodeURIComponent(k)}`)
+    .join("&");
+
+  const url = `https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&detect_language=true&${keywords}`;
   const res = await fetch(url, {
     method: "POST",
     headers: {

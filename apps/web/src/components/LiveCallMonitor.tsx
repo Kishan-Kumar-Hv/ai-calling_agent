@@ -47,6 +47,21 @@ const PHASES: CallPhase[] = [
 
 type CallStatus = "connecting" | "agent_speaking" | "listening" | "analyzing";
 
+function cleanRecognizedSpeech(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\bcampers\b/gi, "hampers")
+    .replace(/\bpamper\b/gi, "hamper")
+    .replace(/\bkid not\b/gi, "kitna")
+    .replace(/\bcould not\b/gi, "kitna")
+    .replace(/\bcar you\b/gi, "kaju")
+    .replace(/\bcaju\b/gi, "kaju")
+    .replace(/\bbad ham\b/gi, "badam")
+    .replace(/\bpiece star\b/gi, "pista")
+    .replace(/\bindira nagar\b/gi, "Indiranagar")
+    .replace(/\bindentifying\b/gi, "inquiring");
+}
+
 export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   activeCall,
   selectedShop,
@@ -66,6 +81,9 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [lastAgentText, setLastAgentText] = useState("");
+  const [sttLang, setSttLang] = useState<"en-IN" | "hi-IN">(
+    selectedShop?.aiSettings?.language === "hi-IN" ? "hi-IN" : "en-IN"
+  );
 
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -358,7 +376,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           const recognition = new SpeechRecognition();
           recognition.continuous = true;
           recognition.interimResults = true;
-          recognition.lang = "en-IN"; // English/Hindi/Hinglish
+          recognition.lang = sttLang; // Indian English or Hindi
 
           recognition.onresult = (event: any) => {
             // Disregard if agent is speaking
@@ -378,13 +396,14 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
               }
             }
 
-            const currentSpoken = (fullFinal || fullInterim).trim();
+            const rawSpoken = (fullFinal || fullInterim).trim();
+            const currentSpoken = cleanRecognizedSpeech(rawSpoken);
             if (currentSpoken) {
               setLiveSpeech(currentSpoken);
               liveSpeechRef.current = currentSpoken;
             }
 
-            // VAD: When user pauses for 1.3 seconds, automatically send the spoken sentence!
+            // VAD: When user pauses for 2.2 seconds, automatically send the spoken sentence!
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
             }
@@ -395,7 +414,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                 if (speechToSend && speechToSend.trim().length > 0) {
                   sendCustomerTurn(speechToSend);
                 }
-              }, 1300);
+              }, 2200);
             }
           };
 
@@ -728,32 +747,79 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         </div>
 
         {/* Live Hearing Words Box with Instant Done Speaking Button */}
-        <div className="mt-4 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex-1 flex items-center space-x-2 text-xs">
-            <Mic className={`w-4 h-4 shrink-0 ${callStatus === "listening" ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
-            {liveSpeech ? (
-              <p className="italic">
-                Hearing you say: <strong className="text-white not-italic font-bold">"{liveSpeech}"</strong>
-              </p>
-            ) : (
-              <p className="text-slate-400 text-xs">
-                {callStatus === "listening"
-                  ? "Start speaking... your words will appear here live."
-                  : "Microphone paused while Riya is responding."}
-              </p>
-            )}
+        <div className="mt-4 pt-3 border-t border-white/10 space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex-1 flex items-center space-x-2 text-xs">
+              <Mic className={`w-4 h-4 shrink-0 ${callStatus === "listening" ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
+              <span className="text-slate-400 text-xs shrink-0 font-medium">Spoken Input:</span>
+              <input
+                type="text"
+                value={liveSpeech}
+                onChange={(e) => {
+                  setLiveSpeech(e.target.value);
+                  liveSpeechRef.current = e.target.value;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && liveSpeech.trim()) {
+                    handleManualDoneSpeaking();
+                  }
+                }}
+                placeholder={
+                  callStatus === "listening"
+                    ? "Speak into mic or type here if words were misheard..."
+                    : "Microphone paused while Riya is responding..."
+                }
+                className="flex-1 bg-black/40 border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-400 font-mono shadow-inner"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              <select
+                value={sttLang}
+                onChange={(e) => setSttLang(e.target.value as "en-IN" | "hi-IN")}
+                className="bg-black/40 border border-white/20 rounded-lg px-2.5 py-1.5 text-[11px] font-mono text-emerald-300 focus:outline-none"
+              >
+                <option value="en-IN">Speech: en-IN (Indian English)</option>
+                <option value="hi-IN">Speech: hi-IN (Hindi / Hinglish)</option>
+              </select>
+
+              {callStatus === "listening" && (
+                <button
+                  onClick={handleManualDoneSpeaking}
+                  disabled={!liveSpeech.trim()}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs transition flex items-center justify-center space-x-1.5 shadow-sm"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Send Words</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          {callStatus === "listening" && (
-            <button
-              onClick={handleManualDoneSpeaking}
-              disabled={!liveSpeech.trim()}
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-extrabold text-xs transition flex items-center justify-center space-x-1.5 shadow-sm shrink-0"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>Done Speaking / Send Voice</span>
-            </button>
-          )}
+          {/* Quick Clickable Spoken Phrases (Helps if microphone has background noise) */}
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-slate-400 text-[10px] font-mono mr-1">Quick Test Prompts:</span>
+            {[
+              "Mujhe 50 boxes dry fruits gift hampers chahiye",
+              "Wholesale bulk discount kitna milega?",
+              "Indiranagar delivery slot confirm karo",
+              "Haan WhatsApp pe catalog bhej do",
+              "Store Manager se baat karni hai",
+            ].map((phrase, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setLiveSpeech(phrase);
+                  liveSpeechRef.current = phrase;
+                  sendCustomerTurn(phrase);
+                }}
+                className="px-2.5 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 transition-colors"
+              >
+                "{phrase}"
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
