@@ -10,7 +10,8 @@ import {
   ArrowRight,
   LogOut,
   ArrowLeft,
-  ShieldCheck
+  ShieldCheck,
+  BookOpen
 } from "lucide-react";
 import { Shop, User } from "../types";
 
@@ -24,7 +25,8 @@ export type NavView =
   | "shops" 
   | "missed-calls" 
   | "live-monitor"
-  | "admin";
+  | "admin"
+  | "catalog";
 
 interface NavbarProps {
   currentView: NavView;
@@ -229,6 +231,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isCallActive && (
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping absolute -top-0.5 -right-0.5" />
               )}
+            </button>
+            <button
+              onClick={() => setCurrentView("catalog")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                currentView === "catalog"
+                  ? "bg-green-50 text-green-700 border border-green-200"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5 text-green-600" />
+              <span>Catalog</span>
             </button>
             <button
               onClick={() => setCurrentView("admin")}

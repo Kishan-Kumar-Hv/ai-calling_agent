@@ -1,3 +1,17 @@
+export interface CatalogProduct {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  priceRetail: number;
+  priceWholesale?: number;
+  unit?: string;
+  minOrderQty?: number;
+  maxOrderQty?: number;
+  stockStatus?: "in_stock" | "limited" | "out_of_stock";
+  tags?: string[];
+}
+
 export interface VoiceTurnRequest {
   storeContext: {
     name: string;
@@ -6,6 +20,7 @@ export interface VoiceTurnRequest {
     phone?: string;
     observedGaps?: string[];
   };
+  catalog?: CatalogProduct[];   // ← live product catalog injected from DB
   callerName?: string;
   customerSpeech: string;
   conversationHistory: Array<{
@@ -47,6 +62,19 @@ export async function processVoiceTurn(req: VoiceTurnRequest): Promise<VoiceTurn
   const category = store.category || "Retail Store";
   const gaps = store.observedGaps?.join(", ") || "capturing local walk-in customers";
 
+  // ── Build live catalog section for Gemini prompt ──────────────────────────
+  let catalogSection = "";
+  if (req.catalog && req.catalog.length > 0) {
+    const lines = req.catalog.map((p) => {
+      const wholesale = p.priceWholesale ? ` | Wholesale: ₹${p.priceWholesale}/${p.unit || "pc"}` : "";
+      const stock = p.stockStatus === "out_of_stock" ? " [OUT OF STOCK]" : p.stockStatus === "limited" ? " [LIMITED STOCK]" : "";
+      const minQty = p.minOrderQty && p.minOrderQty > 1 ? ` | Min order: ${p.minOrderQty} ${p.unit || "pc"}` : "";
+      const tags = p.tags && p.tags.length > 0 ? ` | Tags: ${p.tags.join(", ")}` : "";
+      return `  - ${p.name}${stock}: ₹${p.priceRetail}/${p.unit || "pc"}${wholesale}${minQty}${tags}${p.description ? ` — ${p.description}` : ""}`;
+    });
+    catalogSection = `\n\nSHOP LIVE PRODUCT CATALOG (quote ONLY these real products and prices — never invent items):\n${lines.join("\n")}\n\nWhen a customer asks what is available, list relevant items from the catalog above with actual prices. If they ask for bulk/wholesale, give the priceWholesale figure if available. If an item is OUT OF STOCK, politely say so and suggest the nearest alternative from the catalog.`;
+  }
+
   const systemInstructions = `You are ${persona}, an elite, empathetic AI Voice SDR calling from "${storeName}" (${category}).
 You are on an active phone call with a customer. You communicate in natural, conversational Hinglish (Indian English mixed with conversational Hindi/Urdu words like "Haan", "Bilkul", "Aapke liye", "Shukriya", "Ji", "Sure").
 
@@ -69,9 +97,11 @@ Your store objective:
 1. Understand the customer's request or inquiry (e.g., custom orders, pricing, booking appointments, retail inquiries).
 2. Answer their question concisely in 1 to 2 spoken sentences (max 35 words). This is a fast phone conversation.
 3. Extract key buying signals: what product/service they want, quantity/party size, budget, timeline, and urgency.
-4. If appropriate, offer to send our festive catalog, price quote, or store appointment directly to their WhatsApp.
-5. If the customer agrees to proceed (e.g., "haan bhej do", "yes please", "sure", "book it"), confirm the booking/WhatsApp dispatch and gracefully prepare to conclude.
-6. If the customer asks for a human manager or sounds frustrated, politely confirm you will transfer them to the store manager.
+4. ALWAYS REFER TO THE LIVE PRODUCT CATALOG BELOW when answering product/price questions — never invent or hallucinate prices.
+5. If the customer asks "kya hai", "what do you have", or similar, mention 2–3 top items from the catalog with real prices.
+6. If appropriate, offer to send the full catalog or price quote directly to their WhatsApp.
+7. If the customer agrees to proceed (e.g., "haan bhej do", "yes please", "sure", "book it"), confirm the booking/WhatsApp dispatch and gracefully prepare to conclude.
+8. If the customer asks for a human manager or sounds frustrated, politely confirm you will transfer them to the store manager.
 
 Return ONLY a valid JSON object with the following schema:
 {
@@ -99,7 +129,7 @@ Return ONLY a valid JSON object with the following schema:
     .map((turn) => `${turn.speaker === "agent" ? persona : "Customer"}: "${turn.text}"`)
     .join("\n");
 
-  const prompt = `${systemInstructions}
+  const prompt = `${systemInstructions}${catalogSection}
 
 Current Store: ${storeName}
 Category: ${category}

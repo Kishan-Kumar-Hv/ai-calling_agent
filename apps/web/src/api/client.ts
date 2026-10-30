@@ -226,5 +226,42 @@ export const api = {
     if (!res.ok) return null;
     return res.json();
   },
+
+  // ─── Product Catalog ──────────────────────────────────────────────────────
+  async getCatalog(shopId: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/catalog?shopId=${encodeURIComponent(shopId)}`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to fetch catalog");
+    return res.json();
+  },
+
+  async createProduct(product: any): Promise<any> {
+    const res = await fetch(`${API_BASE}/catalog`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(product),
+    });
+    if (!res.ok) throw new Error("Failed to create product");
+    return res.json();
+  },
+
+  async updateProduct(id: string, product: any): Promise<any> {
+    const res = await fetch(`${API_BASE}/catalog/${id}`, {
+      method: "PUT",
+      headers: getHeaders(),
+      body: JSON.stringify(product),
+    });
+    if (!res.ok) throw new Error("Failed to update product");
+    return res.json();
+  },
+
+  async deleteProduct(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/catalog/${id}`, {
+      method: "DELETE",
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to delete product");
+  },
 };
 

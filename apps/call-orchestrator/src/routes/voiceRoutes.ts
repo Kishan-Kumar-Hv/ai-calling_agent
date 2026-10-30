@@ -2,7 +2,8 @@ import { Router, Request, Response } from "express";
 import { Store } from "../models/Store";
 import { CallRecord } from "../models/CallRecord";
 import { MissedCall } from "../models/MissedCall";
-import { processVoiceTurn, VoiceTurnRequest, generatePostCallSummary } from "../services/geminiVoiceAgent";
+import { Product } from "../models/Product";
+import { processVoiceTurn, VoiceTurnRequest, generatePostCallSummary, CatalogProduct } from "../services/geminiVoiceAgent";
 import { generateDeepgramSpeech, transcribeDeepgramAudio } from "../services/deepgramService";
 import { isMongoConnected } from "../db/mongo";
 
@@ -35,6 +36,7 @@ router.post("/turn", async (req: Request, res: Response) => {
 
     let ownerId: any = null;
     let shopRecord: any = null;
+    let liveCatalog: CatalogProduct[] = [];
 
     if (shopId && isMongoConnected()) {
       shopRecord = await Store.findById(shopId);
@@ -47,11 +49,28 @@ router.post("/turn", async (req: Request, res: Response) => {
           phone: shopRecord.phone,
           observedGaps: shopRecord.observedGaps || [],
         };
+
+        // ── Fetch live catalog for this shop ─────────────────────────────
+        const products = await Product.find({ shopId, isActive: true }).sort({ category: 1, name: 1 }).limit(50);
+        liveCatalog = products.map((p) => ({
+          id:             p._id.toString(),
+          name:           p.name,
+          description:    p.description,
+          category:       p.category,
+          priceRetail:    p.priceRetail,
+          priceWholesale: p.priceWholesale,
+          unit:           p.unit,
+          minOrderQty:    p.minOrderQty,
+          maxOrderQty:    p.maxOrderQty,
+          stockStatus:    p.stockStatus,
+          tags:           p.tags,
+        }));
       }
     }
 
     const turnReq: VoiceTurnRequest = {
       storeContext,
+      catalog: liveCatalog,
       callerName: leadName,
       customerSpeech,
       conversationHistory,

@@ -9,6 +9,7 @@ import { ShopManagement } from "./components/ShopManagement";
 import { MissedCallQueue } from "./components/MissedCallQueue";
 import { LiveCallMonitor } from "./components/LiveCallMonitor";
 import { AdminPortal } from "./components/AdminPortal";
+import { CatalogManager } from "./components/CatalogManager";
 import { 
   initialUser, 
   initialShops, 
@@ -420,6 +421,10 @@ export function App() {
 
         {currentView === "admin" && (
           <AdminPortal />
+        )}
+
+        {currentView === "catalog" && (
+          <CatalogManager selectedShop={selectedShop} />
         )}
       </main>
 

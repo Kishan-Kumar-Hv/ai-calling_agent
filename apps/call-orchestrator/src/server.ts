@@ -9,6 +9,7 @@ import { shopRouter } from "./routes/shopRoutes";
 import { missedCallRouter } from "./routes/missedCallRoutes";
 import { adminRouter } from "./routes/adminRoutes";
 import { voiceRouter } from "./routes/voiceRoutes";
+import { catalogRouter } from "./routes/catalogRoutes";
 import { Store } from "./models/Store";
 
 const app = express();
@@ -41,6 +42,7 @@ app.use("/api/shops", shopRouter);
 app.use("/api/missed-calls", missedCallRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/voice", voiceRouter);
+app.use("/api/catalog", catalogRouter);
 
 app.get("/health", (_req, res) => {
   res.json({
