@@ -135,22 +135,8 @@ export function App() {
     setActiveCall(newSession);
     setCurrentView("live-monitor");
 
-    try {
-      await fetch("http://localhost:4000/calls/outbound", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenantId: selectedShop.id,
-          leadPhoneNumber: call.phoneNumber,
-          leadName: call.callerName,
-          businessName: selectedShop.name,
-          observedLack: selectedShop.observedGaps[0] ?? "digital visibility",
-          bypassTimeGuardrails: true,
-        }),
-      });
-    } catch (e) {
-      console.log("[web] backend orchestrator offline, continuing in interactive demo mode");
-    }
+    // Pure in-app simulation: do not place outbound PSTN phone calls to avoid ringing real physical phones
+    // The conversation runs directly through your laptop microphone and speakers inside the app!
   };
 
   const handleEndCall = async () => {
