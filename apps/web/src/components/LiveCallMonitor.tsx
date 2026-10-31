@@ -425,7 +425,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           const recognition = new SpeechRecognition();
           recognition.continuous = true;
           recognition.interimResults = true;
-          recognition.lang = sttLang; // Indian English or Hindi
+          recognition.lang = "en-US"; // Standard universally recognized English
 
           recognition.onresult = (event: any) => {
             let fullInterim = "";
@@ -458,17 +458,22 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                 if (speechToSend && speechToSend.trim().length > 0) {
                   sendCustomerTurn(speechToSend);
                 }
-              }, 800);
+              }, 700);
             }
           };
 
           recognition.onerror = (event: any) => {
-            if (event.error === "no-speech") return;
             console.warn("[SpeechRecognition] error:", event.error);
+            // Auto-restart on abort or transient network error
+            if (event.error !== "no-speech" && callStatusRef.current === "listening") {
+              setTimeout(() => {
+                try { recognition.start(); } catch (e) {}
+              }, 300);
+            }
           };
 
           recognition.onend = () => {
-            // Re-open if still in listening state
+            // Immediately resurrect recognizer if call is active
             if (callStatusRef.current === "listening" && !isMutedRef.current) {
               try {
                 recognition.start();
@@ -477,6 +482,9 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           };
 
           recognitionRef.current = recognition;
+          try {
+            recognition.start();
+          } catch (e) {}
         }
 
         // 4. Force status to listening and immediately start recognition
