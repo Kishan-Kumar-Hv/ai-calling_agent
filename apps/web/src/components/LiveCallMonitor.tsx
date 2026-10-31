@@ -150,22 +150,26 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         try {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(text);
-          utterance.rate = 1.05;
+          utterance.rate = 1.0;
           utterance.pitch = 1.0;
-          const voices = window.speechSynthesis.getVoices();
-          const preferredVoice = voices.find(
-            (v) => v.lang.includes("en-IN") || v.lang.includes("en-GB") || v.lang.includes("en-US") || v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("victoria")
-          );
-          if (preferredVoice) utterance.voice = preferredVoice;
+          
+          let hasFinished = false;
+          const finishSpeech = () => {
+            if (hasFinished) return;
+            hasFinished = true;
+            setCallStatus("listening");
+            startMicListening();
+          };
 
-          utterance.onend = () => {
-            setCallStatus("listening");
-            startMicListening();
-          };
-          utterance.onerror = () => {
-            setCallStatus("listening");
-            startMicListening();
-          };
+          utterance.onend = finishSpeech;
+          utterance.onerror = finishSpeech;
+
+          // Safety watchdog: In case Chrome SpeechSynthesis pauses or swallows onend event
+          const wordsCount = text.split(" ").length;
+          const maxSpeechDurationMs = Math.max(wordsCount * 450, 2500);
+          setTimeout(() => {
+            finishSpeech();
+          }, maxSpeechDurationMs);
 
           window.speechSynthesis.speak(utterance);
           setAutoplayBlocked(false);
@@ -361,16 +365,13 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   // Start speech recognition safely
   const startMicListening = useCallback(() => {
     if (isMutedRef.current) return;
+    setCallStatus("listening");
     if (!recognitionRef.current) return;
 
     try {
       recognitionRef.current.start();
-      setCallStatus("listening");
     } catch (e: any) {
-      if (!e.message?.includes("already started")) {
-        console.warn("[startMicListening] error:", e);
-      }
-      setCallStatus("listening");
+      // If already started or restarting, ignore
     }
   }, []);
 
@@ -448,18 +449,18 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
               liveSpeechRef.current = currentSpoken;
             }
 
-            // VAD: When user pauses for 1.2 seconds, automatically send the spoken sentence!
+            // VAD: When user pauses speaking for 900ms, automatically send the spoken sentence!
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
             }
 
-            if (currentSpoken.length > 2) {
+            if (currentSpoken.length > 1) {
               silenceTimerRef.current = setTimeout(() => {
                 const speechToSend = liveSpeechRef.current || currentSpoken;
                 if (speechToSend && speechToSend.trim().length > 0) {
                   sendCustomerTurn(speechToSend);
                 }
-              }, 1200);
+              }, 900);
             }
           };
 
