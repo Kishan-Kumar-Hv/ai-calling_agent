@@ -48,6 +48,11 @@ export function App() {
   useEffect(() => {
     if (!user) return;
 
+    // Default to shops view when logged in if currently on home or login
+    if (currentView === "home" || currentView === "login" || currentView === "register") {
+      setCurrentView("shops");
+    }
+
     async function loadTenantData() {
       try {
         const userShops = await api.getShops();
