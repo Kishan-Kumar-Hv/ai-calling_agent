@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import mongoose from "mongoose";
 import { Store } from "../models/Store";
 import { CallRecord } from "../models/CallRecord";
 import { MissedCall } from "../models/MissedCall";
@@ -27,11 +28,11 @@ router.post("/turn", async (req: Request, res: Response) => {
     }
 
     let storeContext = {
-      name: "Involynk Retail Branch",
-      category: "Retail",
+      name: "Crust & Crumb Artisan Bakery",
+      category: "Artisan Bakery & Patisserie",
       personaName: "Riya",
-      phone: "+91 84319 80422",
-      observedGaps: ["local walk-in optimization"],
+      phone: "+91 93539 02221",
+      observedGaps: ["Custom birthday cake pre-orders"],
     };
 
     let ownerId: any = null;
@@ -39,7 +40,10 @@ router.post("/turn", async (req: Request, res: Response) => {
     let liveCatalog: CatalogProduct[] = [];
 
     if (shopId && isMongoConnected()) {
-      shopRecord = await Store.findById(shopId);
+      const isObjectId = mongoose.Types.ObjectId.isValid(shopId);
+      if (isObjectId) {
+        shopRecord = await Store.findById(shopId);
+      }
       if (shopRecord) {
         ownerId = shopRecord.ownerId;
         storeContext = {
@@ -51,7 +55,7 @@ router.post("/turn", async (req: Request, res: Response) => {
         };
 
         // ── Fetch live catalog for this shop ─────────────────────────────
-        const products = await Product.find({ shopId, isActive: true }).sort({ category: 1, name: 1 }).limit(50);
+        const products = await Product.find({ shopId: shopRecord._id, isActive: true }).sort({ category: 1, name: 1 }).limit(50);
         liveCatalog = products.map((p) => ({
           id:             p._id.toString(),
           name:           p.name,

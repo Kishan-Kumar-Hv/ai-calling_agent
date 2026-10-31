@@ -8,70 +8,44 @@ const router = Router();
 // In-memory fallback stores partitioned by ownerId
 const inMemoryStores = new Map<string, any[]>();
 
-// Seed default stores for demo owner "usr_kishan_99"
-inMemoryStores.set("usr_kishan_99", [
-  {
-    id: "shop_1",
-    ownerId: "usr_kishan_99",
-    name: "Kishan Dry Fruits & Gourmet Spices",
-    category: "Dry Fruits & Spices",
-    phone: "+91 84319 80422",
-    address: "Indiranagar 100ft Road, Stage 2, Bengaluru, Karnataka 560038",
-    operatingHours: "09:30 AM - 09:30 PM (IST)",
-    bannerImage: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=80",
-    observedGaps: [
-      "No Google Maps Local Listing (losing walk-ins to nearby dry fruit stores)",
-      "Unoptimized website with >4.8s mobile load time",
-      "No automated WhatsApp order callback during festival rush",
-    ],
-    aiSettings: {
-      personaName: "Riya",
-      language: "hinglish",
-      tone: "Friendly & Empathetic",
-      autoWhatsApp: true,
-      whatsappTemplate:
-        "Hi {{name}}! Riya from {{shop_name}}. Sorry we missed your call. Here is our gourmet festive catalog: {{portfolio_url}}",
-      transferNumber: "+91 84319 80422",
-      maxRetries: 3,
-      callPacingSeconds: 8,
-    },
-    metrics: {
-      totalMissedRecovered: 142,
-      conversionRate: 68.4,
-      revenueSaved: "₹1,84,500",
-      avgLatencyMs: 340,
-    },
+// Seed default stores for demo owner "usr_kishan_99" and default bakery
+const bakeryStore = {
+  id: "shop_bakery_01",
+  name: "Crust & Crumb Artisan Bakery",
+  category: "Artisan Bakery & Patisserie",
+  phone: "+91 93539 02221",
+  address: "12th Main Road, HAL 2nd Stage, Indiranagar, Bengaluru 560038",
+  operatingHours: "09:30 AM - 07:30 PM (IST)",
+  bannerImage: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80",
+  observedGaps: [
+    "High missed calls for custom birthday & wedding cakes during morning rush",
+    "No automated WhatsApp menu link sent to missed callers",
+  ],
+  aiSettings: {
+    personaName: "Riya",
+    language: "en-IN",
+    tone: "Professional, Warm & Welcoming",
+    autoWhatsApp: true,
+    whatsappTemplate: "Hello {{name}}! Riya from {{shop_name}}. Sorry we missed your call. Here is our fresh artisan bakery menu and custom cake pre-order link: {{portfolio_url}}",
+    transferNumber: "+91 93539 02221",
+    maxRetries: 3,
+    callPacingSeconds: 8,
   },
-  {
-    id: "shop_2",
-    ownerId: "usr_kishan_99",
-    name: "Kishan Dry Fruits - Jayanagar Branch",
-    category: "Dry Fruits & Spices",
-    phone: "+91 84319 80422",
-    address: "9th Main, 4th Block, Jayanagar, Bengaluru 560011",
-    operatingHours: "09:30 AM - 09:30 PM (IST)",
-    bannerImage: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80",
-    observedGaps: [
-      "Missing automated slot booking for corporate dry fruit hampers",
-    ],
-    aiSettings: {
-      personaName: "Riya",
-      language: "hinglish",
-      tone: "Friendly & Empathetic",
-      autoWhatsApp: true,
-      whatsappTemplate: "Hi {{name}}! Riya from Jayanagar branch. Here is our direct catalog: {{portfolio_url}}",
-      transferNumber: "+91 84319 80422",
-      maxRetries: 3,
-      callPacingSeconds: 8,
-    },
-    metrics: {
-      totalMissedRecovered: 48,
-      conversionRate: 62.5,
-      revenueSaved: "₹64,000",
-      avgLatencyMs: 320,
-    },
+  twilioConfig: {
+    phoneNumber: process.env.TWILIO_FROM_NUMBER || "+15752213417",
+    accountSid: process.env.TWILIO_ACCOUNT_SID || "",
+    authToken: process.env.TWILIO_AUTH_TOKEN || "",
+    enabled: true,
   },
-]);
+  metrics: {
+    totalMissedRecovered: 84,
+    conversionRate: 74.2,
+    revenueSaved: "₹1,26,000",
+    avgLatencyMs: 310,
+  },
+};
+
+inMemoryStores.set("usr_kishan_99", [bakeryStore]);
 
 // 1. GET ALL STORES: STRICTLY FILTERED BY OWNER ID
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {

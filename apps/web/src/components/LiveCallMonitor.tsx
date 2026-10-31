@@ -82,7 +82,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   const [isMicReady, setIsMicReady] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [speakerMuted, setSpeakerMuted] = useState(true);
+  const [speakerMuted, setSpeakerMuted] = useState(false); // Laptop speaker ON by default so Riya speaks aloud!
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [lastAgentText, setLastAgentText] = useState("");
   const [sttLang, setSttLang] = useState<"en-IN" | "hi-IN">(
@@ -99,7 +99,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
 
   const callStatusRef = useRef<CallStatus>("connecting");
   const isMutedRef = useRef(false);
-  const speakerMutedRef = useRef(true);
+  const speakerMutedRef = useRef(false); // Laptop speaker ON by default
   const liveSpeechRef = useRef("");
 
   callStatusRef.current = callStatus;
