@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User";
 import { Store } from "../models/Store";
+import { Product } from "../models/Product";
+import { MissedCall } from "../models/MissedCall";
 import { isMongoConnected } from "../db/mongo";
 
 const router = Router();
@@ -43,23 +45,23 @@ router.post("/register", async (req, res) => {
     });
 
     // Auto-create initial store branch for this registered business
-    await Store.create({
+    const initialStore = await Store.create({
       ownerId: user._id,
       name: user.businessName,
-      category: "Retail",
+      category: user.businessName.toLowerCase().includes("bakery") ? "Artisan Bakery & Patisserie" : "Retail",
       phone: user.phone,
-      address: "Main Store Branch",
+      address: "12th Main Road, HAL 2nd Stage, Indiranagar, Bengaluru 560038",
       operatingHours: "09:30 AM - 09:30 PM (IST)",
-      bannerImage: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=1200&q=80",
+      bannerImage: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80",
       aiSettings: {
         personaName: "Riya",
-        language: "hinglish",
-        tone: "Friendly & Empathetic",
+        language: "en-IN",
+        tone: "Professional, Warm & Welcoming",
         autoWhatsApp: true,
-        whatsappTemplate: `Hi! Riya here from ${user.businessName}. We noticed we missed your call. How can we assist you today?`,
+        whatsappTemplate: `Hello! Riya here from ${user.businessName}. We noticed we missed your call. How can we assist you with your order today?`,
         transferNumber: user.phone,
         maxRetries: 3,
-        callPacingSeconds: 10,
+        callPacingSeconds: 8,
       },
       metrics: {
         totalMissedRecovered: 0,
@@ -67,6 +69,81 @@ router.post("/register", async (req, res) => {
         revenueSaved: "₹0",
         avgLatencyMs: 310,
       },
+    });
+
+    // Auto-seed initial starter catalog products so the store catalog is never empty!
+    await Product.create([
+      {
+        ownerId: user._id,
+        shopId: initialStore._id,
+        name: "Belgian Chocolate Truffle Cake (1kg)",
+        category: "Cakes & Desserts",
+        priceRetail: 1250,
+        priceWholesale: 999,
+        unit: "cake",
+        minOrderQty: 1,
+        stockStatus: "in_stock",
+        tags: ["bestseller", "birthday", "chocolate"],
+        description: "Rich dark Belgian chocolate ganache layered with moist sponge.",
+        isActive: true,
+      },
+      {
+        ownerId: user._id,
+        shopId: initialStore._id,
+        name: "Artisan Sourdough Loaf (400g)",
+        category: "Artisan Breads",
+        priceRetail: 220,
+        priceWholesale: 180,
+        unit: "loaf",
+        minOrderQty: 1,
+        stockStatus: "in_stock",
+        tags: ["organic", "sourdough", "fresh"],
+        description: "Naturally fermented 24-hour slow-rise sourdough loaf with crunchy crust.",
+        isActive: true,
+      },
+      {
+        ownerId: user._id,
+        shopId: initialStore._id,
+        name: "French Butter Croissant Box (Pack of 6)",
+        category: "Pastries & Croissants",
+        priceRetail: 480,
+        priceWholesale: 420,
+        unit: "box",
+        minOrderQty: 1,
+        stockStatus: "in_stock",
+        tags: ["breakfast", "french", "butter"],
+        description: "Flaky, buttery multi-layered authentic French croissants.",
+        isActive: true,
+      },
+      {
+        ownerId: user._id,
+        shopId: initialStore._id,
+        name: "Red Velvet Cream Cheese Jar Cake",
+        category: "Cakes & Desserts",
+        priceRetail: 199,
+        priceWholesale: 160,
+        unit: "jar",
+        minOrderQty: 1,
+        stockStatus: "in_stock",
+        tags: ["dessert", "red velvet"],
+        description: "Decadent red velvet crumb with smooth Philadelphia cream cheese frosting.",
+        isActive: true,
+      },
+    ]);
+
+    // Auto-seed initial missed call for demonstration
+    await MissedCall.create({
+      ownerId: user._id,
+      shopId: initialStore._id,
+      shopName: initialStore.name,
+      phoneNumber: "+91 93539 02221",
+      callerName: "Aarav Sharma (Custom Birthday Cake Order)",
+      timestamp: "Just now (< 45s ago)",
+      priority: "P0",
+      status: "pending",
+      priorityReason: "High Intent • Custom 2kg Cake Inquiry",
+      priorityScore: 135,
+      queueRank: 1,
     });
 
     const token = jwt.sign(
