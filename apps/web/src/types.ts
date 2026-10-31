@@ -102,6 +102,11 @@ export interface LiveCallSession {
     budgetSignal?: string;
     timeline?: string;
     intent?: string;
+    orderItem?: string;
+    quantity?: string;
+    eventOccasion?: string;
+    deliveryDate?: string;
+    deliveryLocation?: string;
   };
   callNotes?: string;
   actionItems?: string[];
@@ -154,6 +159,11 @@ export interface AdminTalk {
     budgetSignal?: string;
     timeline?: string;
     intent?: string;
+    orderItem?: string;
+    quantity?: string;
+    eventOccasion?: string;
+    deliveryDate?: string;
+    deliveryLocation?: string;
   };
   callNotes?: string;
   actionItems?: string[];

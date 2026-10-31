@@ -419,7 +419,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
               liveSpeechRef.current = currentSpoken;
             }
 
-            // VAD: When user pauses for 2.2 seconds, automatically send the spoken sentence!
+            // VAD: When user pauses for 1.2 seconds, automatically send the spoken sentence!
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
             }
@@ -430,7 +430,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                 if (speechToSend && speechToSend.trim().length > 0) {
                   sendCustomerTurn(speechToSend);
                 }
-              }, 2200);
+              }, 1200);
             }
           };
 
@@ -864,25 +864,27 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
 
           {/* Quick Clickable Spoken Phrases (Helps if microphone has background noise) */}
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="text-slate-400 text-[10px] font-mono mr-1">Quick Test Prompts:</span>
+            <span className="text-slate-400 text-[10px] font-mono mr-1">5-Stage Test Prompts:</span>
             {[
-              "I want to order a 2kg Belgian Chocolate Truffle Cake for a birthday tomorrow",
-              "Do you have fresh French butter croissants available right now?",
-              "Can you do a custom 3-tier wedding cake consultation?",
-              "Yes please, send the bakery menu and price list to my WhatsApp",
-              "Could you please connect me to the master baker?",
-            ].map((phrase, idx) => (
+              { label: "1. Greeting", text: "Hello Riya, good morning!" },
+              { label: "2. Order Item", text: "I'd like to order a Belgian Chocolate Truffle Cake." },
+              { label: "3. Quantity", text: "Please make it a 2kg cake." },
+              { label: "4. Event", text: "It is for my son's 5th birthday party." },
+              { label: "5. Delivery Date & Area", text: "Deliver it tomorrow by 5 PM to Indiranagar 100ft Road." },
+              { label: "⚡ All 5 in One", text: "Hi Riya, I want a 2kg Belgian Chocolate Truffle Cake for a birthday party tomorrow at 5 PM in Indiranagar." },
+            ].map((p, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => {
-                  setLiveSpeech(phrase);
-                  liveSpeechRef.current = phrase;
-                  sendCustomerTurn(phrase);
+                  setLiveSpeech(p.text);
+                  liveSpeechRef.current = p.text;
+                  sendCustomerTurn(p.text);
                 }}
-                className="px-2.5 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 transition-colors"
+                className="px-2.5 py-1 rounded-md bg-white/10 hover:bg-white/20 text-slate-200 border border-white/10 transition-colors flex items-center gap-1"
+                title={p.text}
               >
-                "{phrase}"
+                <span className="font-semibold text-emerald-300">{p.label}</span>
               </button>
             ))}
           </div>
@@ -912,21 +914,33 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                 </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Quantity / Scale:</span>
+                <span className="text-slate-500 font-medium">Order Item:</span>
+                <span className="text-indigo-600 font-bold">
+                  {activeCall.extractedEntities.orderItem || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100">
+                <span className="text-slate-500 font-medium">Quantity / Weight:</span>
                 <span className="text-slate-900 font-semibold">
-                  {activeCall.extractedEntities.teamSize || "—"}
+                  {activeCall.extractedEntities.quantity || activeCall.extractedEntities.teamSize || "—"}
                 </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Budget Signal:</span>
-                <span className="text-emerald-700 font-bold">
-                  {activeCall.extractedEntities.budgetSignal || "Flexible"}
+                <span className="text-slate-500 font-medium">Event / Occasion:</span>
+                <span className="text-purple-700 font-bold">
+                  {activeCall.extractedEntities.eventOccasion || "—"}
                 </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-100">
-                <span className="text-slate-500 font-medium">Timeline / Urgency:</span>
+                <span className="text-slate-500 font-medium">Delivery Date / Time:</span>
                 <span className="text-blue-700 font-bold">
-                  {activeCall.extractedEntities.timeline || "Immediate"}
+                  {activeCall.extractedEntities.deliveryDate || activeCall.extractedEntities.timeline || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-100">
+                <span className="text-slate-500 font-medium">Delivery Location:</span>
+                <span className="text-emerald-700 font-bold">
+                  {activeCall.extractedEntities.deliveryLocation || "—"}
                 </span>
               </div>
               <div className="flex justify-between py-1.5">

@@ -42,6 +42,18 @@ export interface VoiceTurnResponse {
     budgetSignal?: string;
     timeline?: string;
     intent?: string;
+    orderItem?: string;
+    quantity?: string;
+    eventOccasion?: string;
+    deliveryDate?: string;
+    deliveryLocation?: string;
+  };
+  orderFulfillmentProgress?: {
+    greeting: boolean;
+    orderItem: boolean;
+    quantity: boolean;
+    eventOccasion: boolean;
+    deliveryDateLocation: boolean;
   };
   keyEntityTags: string[];
   callNotes?: string;
@@ -98,21 +110,41 @@ Your store objective:
 7. If the customer agrees (e.g., "yes please", "send it", "sure", "confirm it"), confirm the WhatsApp dispatch clearly in English and politely conclude.
 8. If the customer asks for a human manager or sounds frustrated, politely confirm you will transfer them to the store manager.
 
+CRITICAL 5-STAGE ORDER FLOW (ACT IN EXACTLY THIS ORDER):
+You MUST guide the conversation systematically through 5 essential stages to take complete customer orders:
+1. GREETING: Warm, welcoming, articulate English greeting identifying yourself (${persona}) and the store ("${storeName}"). Acknowledge their missed call or inquiry.
+2. ORDER / ITEM: Identify exactly what items they want (e.g. Belgian Chocolate Truffle Cake, Sourdough Loaf, French Butter Croissants, Jar Cakes). Quote verified prices directly from the live catalog below.
+3. QUANTITY: Ask or confirm the exact quantity, weight, or servings needed (e.g., "1kg", "2kg", "box of 6", "50 pieces").
+4. EVENT / OCCASION: Ask or confirm what special event or occasion this is for (e.g., Birthday, Anniversary, Corporate High Tea, Wedding, Housewarming).
+5. DELIVERY DATE & LOCATION: Confirm the exact delivery date/time and the delivery address or branch pickup location (e.g., "Tomorrow by 5 PM to Indiranagar 100ft Road").
+
 Return ONLY a valid JSON object with the following schema:
 {
-  "agentResponse": "Concise spoken English answer (1-2 sentences in pure English)",
+  "agentResponse": "Concise spoken English answer (1-2 sentences in pure English). Directly acknowledge what they said and naturally ask for the next missing stage among the 5.",
   "detectedPhase": "GREETING" | "DISCOVERY" | "QUALIFICATION" | "OBJECTION_HANDLING" | "PITCH" | "BOOKING" | "CONFIRMATION" | "CLOSE" | "ESCALATION" | "DECLINED",
   "sentiment": "interested" | "curious" | "skeptical" | "positive" | "neutral",
   "scoreBand": "HOT" | "WARM" | "COLD",
   "extractedEntities": {
     "companyName": "detected business/client name or null",
-    "teamSize": "detected quantity, guest count, or items, or null",
+    "teamSize": "detected guest count or null",
     "budgetSignal": "detected budget e.g. Bulk Wholesale, Flexible, ₹20k, or null",
-    "timeline": "detected time frame e.g. Diwali, Today 5pm, Sunday, or null",
-    "intent": "summary of customer purpose"
+    "timeline": "detected time frame or null",
+    "intent": "summary of customer purpose",
+    "orderItem": "specific cake, bread, or pastry ordered e.g. Belgian Chocolate Truffle Cake or null",
+    "quantity": "weight or count e.g. 2kg or 2 boxes or null",
+    "eventOccasion": "event e.g. Birthday, Anniversary, Wedding, Celebration, or null",
+    "deliveryDate": "target date/time e.g. Tomorrow 5 PM, Sunday morning, or null",
+    "deliveryLocation": "delivery address or area e.g. Indiranagar, Koramangala, or Store Pickup, or null"
+  },
+  "orderFulfillmentProgress": {
+    "greeting": true,
+    "orderItem": true or false,
+    "quantity": true or false,
+    "eventOccasion": true or false,
+    "deliveryDateLocation": true or false
   },
   "keyEntityTags": ["list", "of", "detected", "keywords"],
-  "callNotes": "Clear running notes summarizing customer requirements, agreements, and current stance",
+  "callNotes": "Clear running notes summarizing customer requirements, order progress across the 5 stages, and current stance",
   "actionItems": ["Immediate follow-up task 1", "task 2"],
   "objectionsRaised": ["any customer hesitation, price objection, or delivery concern, or empty"],
   "whatsAppPushed": true or false,
@@ -148,8 +180,8 @@ Generate the JSON analysis and spoken response now:`;
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           responseMimeType: "application/json",
-          temperature: 0.6,
-          maxOutputTokens: 350,
+          temperature: 0.4,
+          maxOutputTokens: 800,
         },
       }),
     });

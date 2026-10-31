@@ -20,6 +20,12 @@ export interface LeadEntities {
   timeline?: string;
   preferredContactTime?: string;
   competitorMentions?: string[];
+  // Bakery & Retail 5-Stage Order Entities
+  orderItem?: string;
+  quantity?: string;
+  eventOccasion?: string;
+  deliveryDate?: string;
+  deliveryLocation?: string;
 }
 
 export interface CallTurn {
