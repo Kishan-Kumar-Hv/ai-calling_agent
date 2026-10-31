@@ -569,14 +569,69 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
 
   if (!activeCall) {
     return (
-      <div className="py-24 text-center rounded-2xl clean-panel p-8 max-w-2xl mx-auto space-y-3">
-        <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-          <PhoneCall className="w-7 h-7" />
+      <div className="py-20 text-center rounded-2xl clean-panel p-8 max-w-xl mx-auto space-y-4 shadow-sm border border-slate-200">
+        <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
+          <PhoneCall className="w-8 h-8 animate-bounce" />
         </div>
-        <h3 className="text-lg font-bold text-slate-900">No Active Phone Call</h3>
-        <p className="text-xs text-slate-500 max-w-md mx-auto">
-          The AI Voice SDR is on standby. Dial a lead from the missed calls queue to start a live voice conversation.
-        </p>
+        <div className="space-y-1">
+          <h3 className="text-xl font-extrabold text-slate-900">Live AI Voice Concierge Ready</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Click below to start an in-app conversation with Riya for <strong>Crust & Crumb Artisan Bakery</strong>.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            const mockCall: any = {
+              id: "call_m_aarav_direct",
+              shopId: selectedShop?.id || "shop_bakery_01",
+              shopName: selectedShop?.name || "Crust & Crumb Artisan Bakery",
+              callerName: "Aarav Sharma",
+              phoneNumber: "+91 93539 02221",
+              timestamp: "Just now",
+              priority: "P0",
+              status: "pending",
+              priorityReason: "High Intent • Custom 2kg Cake Inquiry",
+              priorityScore: 135,
+              queueRank: 1,
+            };
+            if (onUpdateActiveCall) {
+              onUpdateActiveCall(() => ({
+                callSid: `CA_live_${Date.now()}`,
+                shopId: selectedShop?.id || "shop_bakery_01",
+                shopName: selectedShop?.name || "Crust & Crumb Artisan Bakery",
+                leadName: "Aarav Sharma",
+                leadPhoneNumber: "+91 93539 02221",
+                activeSpeaker: "agent",
+                phase: "GREETING",
+                sentiment: "interested",
+                scoreBand: "HOT",
+                durationSec: 1,
+                whatsAppPushed: false,
+                whatsAppOpened: false,
+                supervisorListening: false,
+                extractedEntities: {
+                  intent: "Custom Birthday Cake Order",
+                },
+                callNotes: "Customer Aarav inquiring about birthday cake order.",
+                actionItems: ["Identify flavor and weight", "Confirm occasion and delivery date"],
+                objectionsRaised: [],
+                transcript: [
+                  {
+                    id: "t_init",
+                    speaker: "agent",
+                    text: `Hello Aarav! This is Riya calling from Crust & Crumb Artisan Bakery. We noticed we missed your call a moment ago—how may I assist you with your order today?`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    sentiment: "interested",
+                  },
+                ],
+              }));
+            }
+          }}
+          className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all shadow-md flex items-center justify-center space-x-2 mx-auto"
+        >
+          <Play className="w-4 h-4 fill-white" />
+          <span>Start In-App Voice Call with Aarav Sharma</span>
+        </button>
       </div>
     );
   }
