@@ -76,7 +76,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
 }) => {
   const [whisperInput, setWhisperInput] = useState("");
   const [currentDuration, setCurrentDuration] = useState(activeCall?.durationSec ?? 3);
-  const [callStatus, setCallStatus] = useState<CallStatus>("connecting");
+  const [callStatus, setCallStatus] = useState<CallStatus>("listening");
   const [liveSpeech, setLiveSpeech] = useState("");
   const [micVolume, setMicVolume] = useState(0);
   const [isMicReady, setIsMicReady] = useState(false);
@@ -97,7 +97,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const transcriptBottomRef = useRef<HTMLDivElement>(null);
 
-  const callStatusRef = useRef<CallStatus>("connecting");
+  const callStatusRef = useRef<CallStatus>("listening");
   const isMutedRef = useRef(false);
   const speakerMutedRef = useRef(false); // Laptop speaker ON by default
   const liveSpeechRef = useRef("");
@@ -479,20 +479,22 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           recognitionRef.current = recognition;
         }
 
-        // 4. Speak initial agent greeting once hardware is ready
+        // 4. Force status to listening and immediately start recognition
+        setCallStatus("listening");
+        callStatusRef.current = "listening";
+
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {}
+        }
+
         if (
           activeCall &&
           activeCall.transcript.length === 1 &&
           activeCall.transcript[0].speaker === "agent"
         ) {
           playAgentVoice(activeCall.transcript[0].text);
-        } else {
-          setCallStatus("listening");
-          if (recognitionRef.current) {
-            try {
-              recognitionRef.current.start();
-            } catch (e) {}
-          }
         }
       } catch (err: any) {
         console.error("[initAudioHardware] error:", err);
