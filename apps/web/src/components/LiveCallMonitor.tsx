@@ -20,10 +20,12 @@ import {
   CheckSquare,
   AlertTriangle,
   Phone,
-  Shield
+  Shield,
+  Download
 } from "lucide-react";
 import { LiveCallSession, CallPhase, Shop } from "../types";
 import { api } from "../api/client";
+import { downloadCallReportPdf } from "../utils/pdfGenerator";
 
 interface LiveCallMonitorProps {
   activeCall: LiveCallSession | null;
@@ -619,6 +621,36 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
             >
               {speakerMuted ? <VolumeX className="w-4 h-4 text-amber-600" /> : <Volume2 className="w-4 h-4 text-blue-600" />}
               <span>{speakerMuted ? "Laptop Speaker: OFF (Phone Mode)" : "Laptop Speaker: ON"}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (!activeCall) return;
+                downloadCallReportPdf({
+                  shopName: selectedShop?.name || activeCall.shopName,
+                  leadName: activeCall.leadName,
+                  leadPhoneNumber: activeCall.leadPhoneNumber,
+                  callSid: activeCall.callSid,
+                  duration: `${currentDuration}s`,
+                  outcome: activeCall.scoreBand === "HOT" ? "booked" : "follow_up",
+                  scoreBand: activeCall.scoreBand,
+                  callNotes: activeCall.callNotes,
+                  actionItems: activeCall.actionItems,
+                  objectionsRaised: activeCall.objectionsRaised,
+                  extractedEntities: activeCall.extractedEntities,
+                  transcript: activeCall.transcript.map((t) => ({
+                    speaker: t.speaker,
+                    text: t.text,
+                    timestamp: t.timestamp,
+                  })),
+                  date: new Date().toLocaleString(),
+                });
+              }}
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center space-x-1.5 shadow-xs"
+              title="Export live conversation audit PDF right now"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export PDF Report</span>
             </button>
 
             <button
