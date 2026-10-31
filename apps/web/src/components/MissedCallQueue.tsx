@@ -294,10 +294,24 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
               </div>
               <p className="text-white font-extrabold text-sm">{conflictResult.runnerUp.callerName}</p>
               <p className="text-blue-200 font-mono text-[11px]">{conflictResult.runnerUp.phoneNumber}</p>
-              <p className="text-blue-100/90 text-[11px] pt-1 flex items-center gap-1 font-semibold">
-                <span>✓ Instant WhatsApp Standby Sent:</span>
-                <span className="italic font-normal">"AI on short call, ringing you in 60s! Here is our catalog..."</span>
-              </p>
+              <div className="pt-2 flex items-center justify-between">
+                <p className="text-blue-100/90 text-[11px] font-semibold flex items-center gap-1">
+                  <span>✓ WhatsApp Standby Queued:</span>
+                  <span className="italic font-normal">"AI calling you in 45s..."</span>
+                </p>
+                <a
+                  href={`https://wa.me/${conflictResult.runnerUp.phoneNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                    `Namaste ${conflictResult.runnerUp.callerName}! We noticed your missed call at ${selectedShop.name}. Our AI concierge Riya is currently on a short call and will ring you in 45 seconds. Meanwhile, here is our festive wholesale catalog: http://localhost:3001`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg font-bold text-[10px] flex items-center gap-1 shadow-sm transition"
+                  title="Click to open actual WhatsApp message to this customer"
+                >
+                  <MessageSquare className="w-3 h-3 text-slate-950" />
+                  <span>Open Real WhatsApp</span>
+                </a>
+              </div>
             </div>
           </div>
 
