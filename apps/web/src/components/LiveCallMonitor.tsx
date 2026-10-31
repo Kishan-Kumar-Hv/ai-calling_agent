@@ -145,7 +145,10 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         return;
       }
 
-      // 1. Instantly speak aloud through Web Speech API (zero wait, never blocks)
+      // 1. Trigger backend macOS hardware afplay so user ALWAYS hears Riya out loud on their laptop
+      fetch(`http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`).catch(() => {});
+
+      // 2. Also speak aloud through Web Speech API in parallel
       if ("speechSynthesis" in window) {
         try {
           window.speechSynthesis.cancel();
@@ -164,9 +167,9 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           utterance.onend = finishSpeech;
           utterance.onerror = finishSpeech;
 
-          // Safety watchdog: In case Chrome SpeechSynthesis pauses or swallows onend event
+          // Safety watchdog
           const wordsCount = text.split(" ").length;
-          const maxSpeechDurationMs = Math.max(wordsCount * 450, 2500);
+          const maxSpeechDurationMs = Math.max(wordsCount * 400, 2000);
           setTimeout(() => {
             finishSpeech();
           }, maxSpeechDurationMs);
@@ -425,11 +428,6 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           recognition.lang = sttLang; // Indian English or Hindi
 
           recognition.onresult = (event: any) => {
-            // Disregard if agent is speaking
-            if (callStatusRef.current === "agent_speaking" || isMutedRef.current) {
-              return;
-            }
-
             let fullInterim = "";
             let fullFinal = "";
 
@@ -449,7 +447,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
               liveSpeechRef.current = currentSpoken;
             }
 
-            // VAD: When user pauses speaking for 900ms, automatically send the spoken sentence!
+            // If user paused or finished final sentence
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
             }
@@ -460,7 +458,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                 if (speechToSend && speechToSend.trim().length > 0) {
                   sendCustomerTurn(speechToSend);
                 }
-              }, 900);
+              }, 800);
             }
           };
 
