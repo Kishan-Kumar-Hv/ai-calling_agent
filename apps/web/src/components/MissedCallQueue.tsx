@@ -36,6 +36,48 @@ interface MissedCallQueueProps {
   onToggleAutoDial: () => void;
 }
 
+// Audio synthesis for realistic telephone ringtones
+function playRealisticPhoneRing(durationMs = 2800) {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+
+    const playDualToneBurst = (startTime: number, toneDuration: number) => {
+      // Standard US/UK telephone ring frequencies: 440Hz + 480Hz
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = "sine";
+      osc2.type = "sine";
+      osc1.frequency.setValueAtTime(440, startTime);
+      osc2.frequency.setValueAtTime(480, startTime);
+
+      // Volume envelope
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.25, startTime + 0.05);
+      gain.gain.setValueAtTime(0.25, startTime + toneDuration - 0.05);
+      gain.gain.linearRampToValueAtTime(0, startTime + toneDuration);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(startTime);
+      osc2.start(startTime);
+      osc1.stop(startTime + toneDuration);
+      osc2.stop(startTime + toneDuration);
+    };
+
+    const now = ctx.currentTime;
+    playDualToneBurst(now, 1.2);
+    playDualToneBurst(now + 1.6, 1.2);
+  } catch (e) {
+    console.warn("Ring audio synthesis failed:", e);
+  }
+}
+
 export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
   selectedShop,
   missedCalls,
@@ -80,6 +122,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
 
   const handleSimulateMissedCall = (e: React.FormEvent) => {
     e.preventDefault();
+    playRealisticPhoneRing();
     const newCall: MissedCall = {
       id: "call_m_" + Math.random().toString(36).substring(2, 8),
       shopId: selectedShop.id,
@@ -101,6 +144,7 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
   const handleSimulateConflict = async () => {
     try {
       setIsSimulatingConflict(true);
+      playRealisticPhoneRing();
       const res = await api.simulateConflict(selectedShop.id, selectedShop.name);
       onAddMissedCall(res.winner);
       onAddMissedCall(res.runnerUp);
