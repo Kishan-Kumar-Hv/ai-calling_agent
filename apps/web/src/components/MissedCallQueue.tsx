@@ -43,6 +43,10 @@ function playRealisticPhoneRing(durationMs = 2800) {
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
 
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+
     const playDualToneBurst = (startTime: number, toneDuration: number) => {
       // Standard US/UK telephone ring frequencies: 440Hz + 480Hz
       const osc1 = ctx.createOscillator();

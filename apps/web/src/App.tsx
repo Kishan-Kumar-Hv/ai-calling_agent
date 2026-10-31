@@ -285,6 +285,15 @@ export function App() {
 
   // Enqueue missed call with backend persistence
   const handleAddMissedCall = async (newCall: MissedCall) => {
+    // If call already has an ID (e.g. from simulateConflict API), prepend immediately to avoid re-creation
+    if (newCall.id && (newCall.id.startsWith("call_sim_") || newCall.id.length === 24)) {
+      setMissedCalls((prev) => {
+        const filtered = prev.filter((c) => c.id !== newCall.id);
+        return [newCall, ...filtered];
+      });
+      return;
+    }
+
     try {
       const saved = await api.createMissedCall(newCall);
       setMissedCalls((prev) => [saved, ...prev]);
