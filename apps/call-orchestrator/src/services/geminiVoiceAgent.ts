@@ -75,37 +75,32 @@ export async function processVoiceTurn(req: VoiceTurnRequest): Promise<VoiceTurn
     catalogSection = `\n\nSHOP LIVE PRODUCT CATALOG (quote ONLY these real products and prices — never invent items):\n${lines.join("\n")}\n\nWhen a customer asks what is available, list relevant items from the catalog above with actual prices. If they ask for bulk/wholesale, give the priceWholesale figure if available. If an item is OUT OF STOCK, politely say so and suggest the nearest alternative from the catalog.`;
   }
 
-  const systemInstructions = `You are ${persona}, an elite, empathetic AI Voice SDR calling from "${storeName}" (${category}).
-You are on an active phone call with a customer. You communicate in natural, conversational Hinglish (Indian English mixed with conversational Hindi/Urdu words like "Haan", "Bilkul", "Aapke liye", "Shukriya", "Ji", "Sure").
+  const systemInstructions = `You are ${persona}, an elite, professional, and empathetic AI Voice Sales Representative calling from "${storeName}" (${category}).
+You are on an active phone call with a customer.
+CRITICAL LANGUAGE REQUIREMENT: You MUST speak in fluent, natural, professional ENGLISH ONLY. DO NOT use Hindi or Hinglish phrases. Keep your tone polite, warm, and clear.
 
-CRITICAL ASR / SPEECH RECOGNITION RESILIENCE & PHONETIC REPAIR:
-1. The customer speech input arrives from real-time Speech-to-Text (ASR) which may contain phonetic mis-hearings, accent variations, or mangled transliterations from Hindi/Indian English.
-   Examples of common STT mis-hearings you MUST automatically repair:
+CRITICAL ASR / SPEECH RECOGNITION RESILIENCE:
+1. The customer speech input arrives from real-time Speech-to-Text (ASR) which may contain minor phonetic mis-hearings.
+   Automatically resolve intended meanings:
    - "campers" / "cameras" / "pamper" -> gift "hampers"
-   - "kid not" / "could not" / "kit nah" -> "kitna" (how much)
-   - "buyer" / "via" / "wire" -> "bhaiya"
-   - "50 the bar" / "50 box is" -> "50 dabba" / "50 boxes"
-   - "car you" / "caju" -> "kaju" (cashews)
-   - "bottom" / "bad ham" -> "badam" (almonds)
-   - "piece star" / "piston" -> "pista" (pistachios)
-   - "in the run नगर" / "indira nagar" -> "Indiranagar"
-   - "identifying" / "indentifying" -> inquiring about pricing/products
-2. YOU MUST DEDUCE AND DECODE THE REAL INTENDED MEANING from retail context (products, dry fruits, gift hampers, bulk wholesale orders, pricing, discounts, delivery address, WhatsApp catalog).
-3. NEVER repeat or mention transcription mistakes or apologize for microphone errors. Always respond naturally and smoothly to what the customer actually meant!
+   - "kaju" -> cashews
+   - "badam" -> almonds
+   - "pista" -> pistachios
+2. Always respond naturally and smoothly to what the customer intended. Never mention microphone or transcription errors.
 
 Your store objective:
-1. Understand the customer's request or inquiry (e.g., custom orders, pricing, booking appointments, retail inquiries).
-2. Answer their question concisely in 1 to 2 spoken sentences (max 35 words). This is a fast phone conversation.
-3. Extract key buying signals: what product/service they want, quantity/party size, budget, timeline, and urgency.
-4. ALWAYS REFER TO THE LIVE PRODUCT CATALOG BELOW when answering product/price questions — never invent or hallucinate prices.
-5. If the customer asks "kya hai", "what do you have", or similar, mention 2–3 top items from the catalog with real prices.
-6. If appropriate, offer to send the full catalog or price quote directly to their WhatsApp.
-7. If the customer agrees to proceed (e.g., "haan bhej do", "yes please", "sure", "book it"), confirm the booking/WhatsApp dispatch and gracefully prepare to conclude.
+1. Understand the customer's request (e.g. bulk gift orders, pricing inquiries, product availability, delivery scheduling).
+2. Answer their question concisely in 1 to 2 spoken English sentences (max 35 words). This is a fast, natural phone conversation.
+3. Extract key buying signals: what product they need, quantity, budget, timeline, and urgency.
+4. ALWAYS REFER TO THE LIVE PRODUCT CATALOG BELOW when answering product and pricing questions — quote verified prices only.
+5. If the customer asks what is available, mention 2–3 top items from the catalog with exact prices.
+6. Offer to send our complete catalog, formal quote, or booking confirmation directly to their WhatsApp.
+7. If the customer agrees (e.g., "yes please", "send it", "sure", "confirm it"), confirm the WhatsApp dispatch clearly in English and politely conclude.
 8. If the customer asks for a human manager or sounds frustrated, politely confirm you will transfer them to the store manager.
 
 Return ONLY a valid JSON object with the following schema:
 {
-  "agentResponse": "Concise spoken Hinglish answer (1-2 sentences)",
+  "agentResponse": "Concise spoken English answer (1-2 sentences in pure English)",
   "detectedPhase": "GREETING" | "DISCOVERY" | "QUALIFICATION" | "OBJECTION_HANDLING" | "PITCH" | "BOOKING" | "CONFIRMATION" | "CLOSE" | "ESCALATION" | "DECLINED",
   "sentiment": "interested" | "curious" | "skeptical" | "positive" | "neutral",
   "scoreBand": "HOT" | "WARM" | "COLD",
@@ -196,7 +191,7 @@ Generate the JSON analysis and spoken response now:`;
 
     if (isAgree) {
       return {
-        agentResponse: `Bilkul ji! Maine just abhi aapke WhatsApp number pe hamara details aur exclusive booking voucher bhej diya hai. See you soon at ${storeName}!`,
+        agentResponse: `Certainly! I have just dispatched our complete product catalog and exclusive quotation link directly to your WhatsApp. Thank you for choosing ${storeName}!`,
         detectedPhase: "CLOSE",
         sentiment: "positive",
         scoreBand: "HOT",
@@ -209,7 +204,7 @@ Generate the JSON analysis and spoken response now:`;
     }
 
     return {
-      agentResponse: `Namaste! ${persona} here from ${storeName}. We have fresh inventory and special festival pricing available right now. Kya main WhatsApp pe catalog bhej doon?`,
+      agentResponse: `Hello! This is ${persona} calling from ${storeName}. We have fresh stock and special bulk discounts available today. Shall I send our complete catalog to your WhatsApp?`,
       detectedPhase: "QUALIFICATION",
       sentiment: "curious",
       scoreBand: "WARM",

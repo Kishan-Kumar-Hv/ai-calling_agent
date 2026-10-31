@@ -866,11 +866,11 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
             <span className="text-slate-400 text-[10px] font-mono mr-1">Quick Test Prompts:</span>
             {[
-              "Mujhe 50 boxes dry fruits gift hampers chahiye",
-              "Wholesale bulk discount kitna milega?",
-              "Indiranagar delivery slot confirm karo",
-              "Haan WhatsApp pe catalog bhej do",
-              "Store Manager se baat karni hai",
+              "I need 50 boxes of dry fruit gift hampers for corporate gifting",
+              "What is your best wholesale bulk discount for cashews?",
+              "Can you deliver to our office in Indiranagar this Friday?",
+              "Yes please, send the complete catalog to my WhatsApp",
+              "Could you please connect me to the store manager?",
             ].map((phrase, idx) => (
               <button
                 key={idx}

@@ -124,7 +124,7 @@ export function App() {
         {
           id: "t_init",
           speaker: "agent",
-          text: `Namaste ${call.callerName} ji! ${selectedShop.aiSettings.personaName} here calling from ${selectedShop.name}. We noticed we missed your call a minute ago—how can I help with your inquiry today?`,
+          text: `Hello ${call.callerName}! This is ${selectedShop.aiSettings.personaName} calling from ${selectedShop.name}. We noticed we missed your call a moment ago—how may I assist you with your order today?`,
           timestamp: "00:02",
           sentiment: "positive",
         },
