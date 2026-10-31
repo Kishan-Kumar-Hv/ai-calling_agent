@@ -121,20 +121,18 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
     return () => clearInterval(interval);
   }, [activeCall]);
 
-  // Play Riya's voice using pure, high-quality Deepgram neural audio
+  // Direct, rock-solid audio playback: uses Web Speech API with explicit voice binding and foolproof resume
   const playAgentVoice = useCallback(
-    async (text: string) => {
+    (text: string) => {
       setLastAgentText(text);
       setCallStatus("agent_speaking");
 
-      // Stop mic recognition while agent is speaking to prevent hearing own voice
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
         } catch (e) {}
       }
 
-      // If laptop speaker is explicitly muted, advance state after speech delay
       if (speakerMutedRef.current) {
         const estimatedDurationMs = Math.min(Math.max(text.split(" ").length * 350, 1800), 5000);
         setTimeout(() => {
@@ -144,49 +142,52 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         return;
       }
 
-      // 1. Play ONE clean female voice stream from Deepgram Aura
-      const ttsUrl = `http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`;
+      if (!("speechSynthesis" in window)) {
+        setCallStatus("listening");
+        startMicListening();
+        return;
+      }
+
       try {
-        if (activeAudioRef.current) {
-          activeAudioRef.current.pause();
-          activeAudioRef.current = null;
-        }
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
 
-        const audio = new Audio(ttsUrl);
-        activeAudioRef.current = audio;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.05;
 
-        let hasEnded = false;
-        const handleDoneSpeaking = () => {
-          if (hasEnded) return;
-          hasEnded = true;
+        // Pick natural English voice
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(
+          (v) =>
+            v.lang.startsWith("en") &&
+            (v.name.includes("Samantha") ||
+              v.name.includes("Victoria") ||
+              v.name.includes("Google") ||
+              v.name.includes("Natural"))
+        ) || voices.find((v) => v.lang.startsWith("en"));
+        if (preferred) utterance.voice = preferred;
+
+        let finished = false;
+        const onComplete = () => {
+          if (finished) return;
+          finished = true;
           setCallStatus("listening");
           startMicListening();
         };
 
-        audio.onended = handleDoneSpeaking;
-        audio.onerror = () => {
-          console.warn("[Deepgram] stream failed, falling back to speech synthesis");
-          fallbackSpeak(text);
-        };
+        utterance.onend = onComplete;
+        utterance.onerror = onComplete;
 
-        // Safety timeout so it never hangs
-        const maxDurationMs = Math.max(text.split(" ").length * 450, 3000);
-        setTimeout(() => {
-          handleDoneSpeaking();
-        }, maxDurationMs);
+        // Safety watchdog: Chrome sometimes pauses synthesis if tab loses focus
+        const maxDuration = Math.max(text.split(" ").length * 400, 2500);
+        setTimeout(onComplete, maxDuration);
 
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              setAutoplayBlocked(false);
-            })
-            .catch(() => {
-              fallbackSpeak(text);
-            });
-        }
+        window.speechSynthesis.speak(utterance);
       } catch (err) {
-        fallbackSpeak(text);
+        console.warn("[playAgentVoice] speak error:", err);
+        setCallStatus("listening");
+        startMicListening();
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,36 +195,8 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
   );
 
   const fallbackSpeak = useCallback((text: string) => {
-    if (speakerMutedRef.current || !("speechSynthesis" in window)) {
-      setCallStatus("listening");
-      startMicListening();
-      return;
-    }
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-      const voices = window.speechSynthesis.getVoices();
-      const voice = voices.find((v) => v.lang.includes("en"));
-      if (voice) utterance.voice = voice;
-
-      utterance.onend = () => {
-        setCallStatus("listening");
-        startMicListening();
-      };
-      utterance.onerror = () => {
-        setCallStatus("listening");
-        startMicListening();
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      setCallStatus("listening");
-      startMicListening();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    playAgentVoice(text);
+  }, [playAgentVoice]);
 
   // Process customer voice turn through Gemini 3.5 Flash-Lite
   const sendCustomerTurn = useCallback(
