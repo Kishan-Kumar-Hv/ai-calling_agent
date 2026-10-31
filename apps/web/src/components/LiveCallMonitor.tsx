@@ -533,19 +533,11 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         </div>
         <button
           onClick={() => {
-            const mockCall: any = {
-              id: "call_m_aarav_direct",
-              shopId: selectedShop?.id || "shop_bakery_01",
-              shopName: selectedShop?.name || "Crust & Crumb Artisan Bakery",
-              callerName: "Aarav Sharma",
-              phoneNumber: "+91 93539 02221",
-              timestamp: "Just now",
-              priority: "P0",
-              status: "pending",
-              priorityReason: "High Intent • Custom 2kg Cake Inquiry",
-              priorityScore: 135,
-              queueRank: 1,
-            };
+            const initialGreeting = `Hello Aarav! This is Riya calling from Crust & Crumb Artisan Bakery. We noticed we missed your call a moment ago—how may I assist you with your order today?`;
+            
+            // Immediately speak the greeting on user gesture click so browser autoplay never blocks it!
+            playAgentVoice(initialGreeting);
+
             if (onUpdateActiveCall) {
               onUpdateActiveCall(() => ({
                 callSid: `CA_live_${Date.now()}`,
@@ -571,7 +563,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
                   {
                     id: "t_init",
                     speaker: "agent",
-                    text: `Hello Aarav! This is Riya calling from Crust & Crumb Artisan Bakery. We noticed we missed your call a moment ago—how may I assist you with your order today?`,
+                    text: initialGreeting,
                     timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                     sentiment: "interested",
                   },
