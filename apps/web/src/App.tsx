@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Navbar, NavView } from "./components/Navbar";
+import { Sidebar } from "./components/Sidebar";
 import { HomePage } from "./components/HomePage";
 import { FeaturesPage } from "./components/FeaturesPage";
 import { AboutPage } from "./components/AboutPage";
@@ -302,9 +303,84 @@ export function App() {
     }
   };
 
+  const isPublicView = ["home", "features", "about", "login", "register"].includes(currentView);
+
+  if (isPublicView) {
+    return (
+      <div className="min-h-screen bg-enterprise-pattern text-slate-900 flex flex-col font-sans">
+        <Navbar
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+          user={user}
+          onLogout={() => {
+            api.logout();
+            setUser(null);
+            setShops([]);
+            setSelectedShop(null);
+            setMissedCalls([]);
+            setActiveCall(null);
+            setCurrentView("home");
+          }}
+          shops={shops}
+          selectedShop={selectedShop}
+          onSelectShop={setSelectedShop}
+          isCallActive={Boolean(activeCall)}
+        />
+
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {currentView === "home" && (
+            <HomePage
+              onGetStarted={() => {
+                if (user) setCurrentView("shops");
+                else setCurrentView("register");
+              }}
+              onExploreFeatures={() => setCurrentView("features")}
+            />
+          )}
+
+          {currentView === "features" && (
+            <FeaturesPage onGoToConsole={() => setCurrentView(user ? "shops" : "login")} />
+          )}
+
+          {currentView === "about" && (
+            <AboutPage onGoToConsole={() => setCurrentView(user ? "shops" : "login")} />
+          )}
+
+          {currentView === "login" && (
+            <LoginPage
+              initialMode="login"
+              onAuthSuccess={(u) => {
+                setUser(u);
+                setCurrentView("shops");
+              }}
+              onCancel={() => setCurrentView("home")}
+            />
+          )}
+
+          {currentView === "register" && (
+            <LoginPage
+              initialMode="register"
+              onAuthSuccess={(u) => {
+                setUser(u);
+                setCurrentView("shops");
+              }}
+              onCancel={() => setCurrentView("home")}
+            />
+          )}
+        </main>
+
+        <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
+          <p>© 2026 Involynk AI Calling Platform. Multi-Tenant MongoDB Atlas Architecture.</p>
+        </footer>
+      </div>
+    );
+  }
+
+  // ─── AUTHENTICATED CONSOLE: CLEAN LEFT SIDEBAR WORKFLOW ─────────────────────────
   return (
-    <div className="min-h-screen bg-enterprise-pattern text-slate-900 flex flex-col font-sans">
-      <Navbar
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans">
+      {/* 1. CLEAN LEFT SIDEBAR */}
+      <Sidebar
         currentView={currentView}
         setCurrentView={setCurrentView}
         user={user}
@@ -323,137 +399,81 @@ export function App() {
         isCallActive={Boolean(activeCall)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentView === "home" && (
-          <HomePage
-            onGetStarted={() => {
-              if (user) setCurrentView("dashboard");
-              else setCurrentView("register");
-            }}
-            onExploreFeatures={() => setCurrentView("features")}
-          />
-        )}
-
-        {currentView === "features" && (
-          <FeaturesPage onGoToConsole={() => setCurrentView(user ? "dashboard" : "login")} />
-        )}
-
-        {currentView === "about" && (
-          <AboutPage onGoToConsole={() => setCurrentView(user ? "dashboard" : "login")} />
-        )}
-
-        {currentView === "login" && (
-          <LoginPage
-            initialMode="login"
-            onAuthSuccess={(u) => {
-              setUser(u);
-              if (u.role === "super_admin") {
-                setCurrentView("admin");
-              } else {
-                setCurrentView("dashboard");
-              }
-            }}
-            onCancel={() => setCurrentView("home")}
-          />
-        )}
-
-        {currentView === "register" && (
-          <LoginPage
-            initialMode="register"
-            onAuthSuccess={(u) => {
-              setUser(u);
-              if (u.role === "super_admin") {
-                setCurrentView("admin");
-              } else {
-                setCurrentView("dashboard");
-              }
-            }}
-            onCancel={() => setCurrentView("home")}
-          />
-        )}
-
-        {currentView === "dashboard" && (
-          <DashboardOverview
-            selectedShop={selectedShop}
-            shops={shops}
-            missedCalls={missedCalls}
-            activeCall={activeCall}
-            onNavigate={(v) => setCurrentView(v)}
-            onQuickDial={(phone, name) => {
-              if (!selectedShop) return;
-              handleTriggerCall({
-                id: "quick_" + Date.now(),
-                shopId: selectedShop.id,
-                shopName: selectedShop.name,
-                phoneNumber: phone,
-                callerName: name,
-                timestamp: "Just now",
-                priority: "P0",
-                status: "pending",
-              });
-            }}
-          />
-        )}
-
-        {currentView === "shops" && (
-          <ShopManagement
-            shops={shops}
-            selectedShop={selectedShop}
-            onSelectShop={setSelectedShop}
-            onUpdateShop={handleUpdateShop}
-            onAddShop={handleAddShop}
-          />
-        )}
-
-        {currentView === "missed-calls" && (
-          <MissedCallQueue
-            selectedShop={selectedShop}
-            missedCalls={missedCalls}
-            onTriggerCall={handleTriggerCall}
-            onAddMissedCall={handleAddMissedCall}
-            autoDialActive={autoDialActive}
-            onToggleAutoDial={() => setAutoDialActive(!autoDialActive)}
-          />
-        )}
-
-        {currentView === "live-monitor" && (
-          <LiveCallMonitor
-            activeCall={activeCall}
-            selectedShop={selectedShop}
-            onEndCall={handleEndCall}
-            onUpdateActiveCall={setActiveCall}
-            onTriggerWhatsAppMidCall={handleTriggerWhatsAppMidCall}
-            onSupervisorWhisper={handleSupervisorWhisper}
-            onTransferToHuman={handleTransferToHuman}
-          />
-        )}
-
-        {currentView === "admin" && (
-          <AdminPortal />
-        )}
-
-        {currentView === "catalog" && (
-          <CatalogManager selectedShop={selectedShop} />
-        )}
-      </main>
-
-      {/* Enterprise Footer */}
-      <footer className="border-t border-slate-200 bg-white py-8 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© 2026 Involynk AI Calling Platform. Multi-Tenant MongoDB Atlas Architecture.</p>
-          <div className="flex items-center space-x-4 font-medium text-slate-600">
-            <button onClick={() => setCurrentView("home")} className="hover:text-blue-600">Home</button>
-            <span>•</span>
-            <button onClick={() => setCurrentView("features")} className="hover:text-blue-600">Features</button>
-            <span>•</span>
-            <button onClick={() => setCurrentView("about")} className="hover:text-blue-600">About Us</button>
-            <span>•</span>
-            <button onClick={() => setCurrentView("admin")} className="hover:text-blue-600">Admin Portal</button>
-            <span>•</span>
-            <button onClick={() => setCurrentView("login")} className="hover:text-blue-600">Sign In</button>
+      {/* 2. MAIN WORKSPACE CONTENT */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <header className="h-14 border-b border-slate-200 bg-white px-8 flex items-center justify-between sticky top-0 z-30 shadow-2xs">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-slate-400 font-medium uppercase font-mono">Workspace</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-xs font-bold text-slate-800 capitalize">
+              {currentView === "shops"
+                ? "Stores & Telephony Configuration"
+                : currentView === "catalog"
+                ? "Product Catalog & Wholesale Inventory"
+                : currentView === "missed-calls"
+                ? "Missed Calls Queue & Concurrency Resolution"
+                : currentView === "live-monitor"
+                ? "Live AI Voice Call Simulator"
+                : "Admin Talks Intelligence Portal"}
+            </span>
           </div>
-        </div>
-      </footer>
+
+          <div className="flex items-center space-x-3">
+            <span className="text-[11px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Twilio Trunk Active: +1 (575) 221-3417
+            </span>
+          </div>
+        </header>
+
+        <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
+          {/* Step 1: Stores */}
+          {(currentView === "shops" || currentView === "dashboard") && (
+            <ShopManagement
+              shops={shops}
+              selectedShop={selectedShop}
+              onSelectShop={setSelectedShop}
+              onUpdateShop={handleUpdateShop}
+              onAddShop={handleAddShop}
+            />
+          )}
+
+          {/* Step 2: Catalog */}
+          {currentView === "catalog" && (
+            <CatalogManager selectedShop={selectedShop} />
+          )}
+
+          {/* Step 3: Missed Calls Queue & 2-Call Concurrency */}
+          {currentView === "missed-calls" && (
+            <MissedCallQueue
+              selectedShop={selectedShop}
+              missedCalls={missedCalls}
+              onTriggerCall={handleTriggerCall}
+              onAddMissedCall={handleAddMissedCall}
+              autoDialActive={autoDialActive}
+              onToggleAutoDial={() => setAutoDialActive(!autoDialActive)}
+            />
+          )}
+
+          {/* Step 4: Live Call Simulator */}
+          {currentView === "live-monitor" && (
+            <LiveCallMonitor
+              activeCall={activeCall}
+              selectedShop={selectedShop}
+              onEndCall={handleEndCall}
+              onUpdateActiveCall={setActiveCall}
+              onTriggerWhatsAppMidCall={handleTriggerWhatsAppMidCall}
+              onSupervisorWhisper={handleSupervisorWhisper}
+              onTransferToHuman={handleTransferToHuman}
+            />
+          )}
+
+          {/* Step 5: Admin Talks */}
+          {currentView === "admin" && (
+            <AdminPortal />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

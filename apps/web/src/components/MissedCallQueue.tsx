@@ -369,39 +369,6 @@ export const MissedCallQueue: React.FC<MissedCallQueueProps> = ({
         </div>
       )}
 
-      {/* Enterprise Guarantees Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl clean-panel flex items-start space-x-3">
-          <Trophy className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-xs font-bold text-slate-900">Deterministic Tie-Breaking Engine</h4>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              When 2 calls arrive simultaneously, Involynk scores priority by: <strong className="text-slate-700">P0 &gt; Repeat Frequency (2x) &gt; Commercial Intent &gt; FIFO</strong>.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl clean-panel flex items-start space-x-3">
-          <MessageSquare className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-xs font-bold text-slate-900">Multi-Channel WhatsApp Redundancy</h4>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              While the #1 call is being dialed, the #2 runner-up is instantly sent a WhatsApp standby brochure so no customer drops off.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl clean-panel flex items-start space-x-3">
-          <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-xs font-bold text-slate-900">TRAI & 72h Cooldown Shield</h4>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Automated calls run strictly between 9:30 AM–7:30 PM IST with 72h anti-spam blocks against Truecaller flagging.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Filter row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 text-xs">
