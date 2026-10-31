@@ -304,16 +304,6 @@ const handleTtsRequest = async (req: Request, res: Response) => {
 
     const audioBuffer = await generateDeepgramSpeech(text, model);
 
-    // Hardware Playback on macOS: bypass browser autoplay security restrictions completely!
-    if (process.platform === "darwin") {
-      const tempAudioFile = path.join("/tmp", `riya_speech_${Date.now()}.mp3`);
-      fs.writeFile(tempAudioFile, audioBuffer, () => {
-        exec(`afplay "${tempAudioFile}"`, () => {
-          fs.unlink(tempAudioFile, () => {});
-        });
-      });
-    }
-
     res.set({
       "Content-Type": "audio/mpeg",
       "Content-Length": audioBuffer.length.toString(),

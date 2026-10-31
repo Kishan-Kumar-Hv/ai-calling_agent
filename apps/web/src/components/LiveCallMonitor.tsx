@@ -121,8 +121,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
     return () => clearInterval(interval);
   }, [activeCall]);
 
-  // Play audio response using immediate browser SpeechSynthesis for instant zero-latency speech,
-  // accompanied by Deepgram audio stream fallback
+  // Play Riya's voice using pure, high-quality Deepgram neural audio
   const playAgentVoice = useCallback(
     async (text: string) => {
       setLastAgentText(text);
@@ -145,44 +144,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         return;
       }
 
-      // 1. Trigger backend macOS hardware afplay so user ALWAYS hears Riya out loud on their laptop
-      fetch(`http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`).catch(() => {});
-
-      // 2. Also speak aloud through Web Speech API in parallel
-      if ("speechSynthesis" in window) {
-        try {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.rate = 1.0;
-          utterance.pitch = 1.0;
-          
-          let hasFinished = false;
-          const finishSpeech = () => {
-            if (hasFinished) return;
-            hasFinished = true;
-            setCallStatus("listening");
-            startMicListening();
-          };
-
-          utterance.onend = finishSpeech;
-          utterance.onerror = finishSpeech;
-
-          // Safety watchdog
-          const wordsCount = text.split(" ").length;
-          const maxSpeechDurationMs = Math.max(wordsCount * 400, 2000);
-          setTimeout(() => {
-            finishSpeech();
-          }, maxSpeechDurationMs);
-
-          window.speechSynthesis.speak(utterance);
-          setAutoplayBlocked(false);
-          return;
-        } catch (e) {
-          console.warn("[playAgentVoice] SpeechSynthesis exception:", e);
-        }
-      }
-
-      // 2. Fallback to Deepgram Aura MP3 Stream if SpeechSynthesis not available
+      // 1. Play ONE clean female voice stream from Deepgram Aura
       const ttsUrl = `http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`;
       try {
         if (activeAudioRef.current) {
@@ -193,15 +155,25 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         const audio = new Audio(ttsUrl);
         activeAudioRef.current = audio;
 
-        audio.onended = () => {
+        let hasEnded = false;
+        const handleDoneSpeaking = () => {
+          if (hasEnded) return;
+          hasEnded = true;
           setCallStatus("listening");
           startMicListening();
         };
 
+        audio.onended = handleDoneSpeaking;
         audio.onerror = () => {
-          setCallStatus("listening");
-          startMicListening();
+          console.warn("[Deepgram] stream failed, falling back to speech synthesis");
+          fallbackSpeak(text);
         };
+
+        // Safety timeout so it never hangs
+        const maxDurationMs = Math.max(text.split(" ").length * 450, 3000);
+        setTimeout(() => {
+          handleDoneSpeaking();
+        }, maxDurationMs);
 
         const playPromise = audio.play();
         if (playPromise !== undefined) {
@@ -210,13 +182,11 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
               setAutoplayBlocked(false);
             })
             .catch(() => {
-              setCallStatus("listening");
-              startMicListening();
+              fallbackSpeak(text);
             });
         }
       } catch (err) {
-        setCallStatus("listening");
-        startMicListening();
+        fallbackSpeak(text);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
