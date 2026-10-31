@@ -121,20 +121,21 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
     return () => clearInterval(interval);
   }, [activeCall]);
 
-  // Play audio response using Deepgram Aura TTS with Web Speech fallback
+  // Play audio response using immediate browser SpeechSynthesis for instant zero-latency speech,
+  // accompanied by Deepgram audio stream fallback
   const playAgentVoice = useCallback(
     async (text: string) => {
       setLastAgentText(text);
       setCallStatus("agent_speaking");
 
-      // Pause mic recognition while agent is speaking to avoid hearing own voice
+      // Stop mic recognition while agent is speaking to prevent hearing own voice
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
         } catch (e) {}
       }
 
-      // If laptop speaker is muted (e.g. talking on phone directly), do not play through browser speaker
+      // If laptop speaker is explicitly muted, advance state after speech delay
       if (speakerMutedRef.current) {
         const estimatedDurationMs = Math.min(Math.max(text.split(" ").length * 350, 1800), 5000);
         setTimeout(() => {
@@ -144,8 +145,38 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         return;
       }
 
-      const ttsUrl = `http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`;
+      // 1. Instantly speak aloud through Web Speech API (zero wait, never blocks)
+      if ("speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.05;
+          utterance.pitch = 1.0;
+          const voices = window.speechSynthesis.getVoices();
+          const preferredVoice = voices.find(
+            (v) => v.lang.includes("en-IN") || v.lang.includes("en-GB") || v.lang.includes("en-US") || v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("victoria")
+          );
+          if (preferredVoice) utterance.voice = preferredVoice;
 
+          utterance.onend = () => {
+            setCallStatus("listening");
+            startMicListening();
+          };
+          utterance.onerror = () => {
+            setCallStatus("listening");
+            startMicListening();
+          };
+
+          window.speechSynthesis.speak(utterance);
+          setAutoplayBlocked(false);
+          return;
+        } catch (e) {
+          console.warn("[playAgentVoice] SpeechSynthesis exception:", e);
+        }
+      }
+
+      // 2. Fallback to Deepgram Aura MP3 Stream if SpeechSynthesis not available
+      const ttsUrl = `http://localhost:4000/api/voice/tts?text=${encodeURIComponent(text)}&model=aura-asteria-en`;
       try {
         if (activeAudioRef.current) {
           activeAudioRef.current.pause();
@@ -161,8 +192,8 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
         };
 
         audio.onerror = () => {
-          console.warn("[Deepgram] Audio playback failed, using Web Speech fallback");
-          fallbackSpeak(text);
+          setCallStatus("listening");
+          startMicListening();
         };
 
         const playPromise = audio.play();
@@ -171,15 +202,14 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
             .then(() => {
               setAutoplayBlocked(false);
             })
-            .catch((err) => {
-              console.warn("[Audio] Autoplay prevented by browser:", err.message);
-              setAutoplayBlocked(true);
-              fallbackSpeak(text);
+            .catch(() => {
+              setCallStatus("listening");
+              startMicListening();
             });
         }
       } catch (err) {
-        console.warn("[TTS] Error starting audio:", err);
-        fallbackSpeak(text);
+        setCallStatus("listening");
+        startMicListening();
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,10 +228,8 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
       utterance.rate = 1.05;
       utterance.pitch = 1.0;
       const voices = window.speechSynthesis.getVoices();
-      const indianVoice = voices.find(
-        (v) => v.lang.includes("IN") || v.name.toLowerCase().includes("india")
-      );
-      if (indianVoice) utterance.voice = indianVoice;
+      const voice = voices.find((v) => v.lang.includes("en"));
+      if (voice) utterance.voice = voice;
 
       utterance.onend = () => {
         setCallStatus("listening");
@@ -330,7 +358,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
     [activeCall, onUpdateActiveCall, playAgentVoice, selectedShop?.id]
   );
 
-  // Start speech recognition
+  // Start speech recognition safely
   const startMicListening = useCallback(() => {
     if (isMutedRef.current) return;
     if (!recognitionRef.current) return;
@@ -342,6 +370,7 @@ export const LiveCallMonitor: React.FC<LiveCallMonitorProps> = ({
       if (!e.message?.includes("already started")) {
         console.warn("[startMicListening] error:", e);
       }
+      setCallStatus("listening");
     }
   }, []);
 
