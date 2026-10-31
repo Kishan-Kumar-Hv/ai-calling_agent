@@ -76,7 +76,7 @@ function rankMissedCalls(calls: any[]) {
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const ownerId = req.user!.id;
-    const shopId = (req.query.shopId as string) || "shop_1";
+    const shopId = (req.query.shopId as string) || "shop_bakery_01";
 
     if (isMongoConnected()) {
       const calls = await MissedCall.find({ ownerId, shopId }).sort({ createdAt: -1 });
@@ -87,7 +87,31 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     const key = `${ownerId}_${shopId}`;
-    const calls = inMemoryMissedCalls.get(key) || [];
+    let calls = inMemoryMissedCalls.get(key);
+    if (!calls || calls.length === 0) {
+      // Exactly ONE fresh high-intent missed call for Bakery
+      calls = [
+        {
+          id: "call_bakery_01",
+          ownerId,
+          shopId,
+          shopName: "Crust & Crumb Artisan Bakery",
+          phoneNumber: "+91 93539 02221",
+          callerName: "Aarav Sharma (Custom Birthday Cake Order)",
+          timestamp: "Just now (< 45s ago)",
+          priority: "P0",
+          status: "pending",
+          priorityReason: "High Intent • Custom 2kg Cake Inquiry",
+          priorityScore: 135,
+          callCount: 1,
+          createdAt: new Date().toISOString(),
+          queueRank: 1,
+          tieBreakWinner: true,
+          whatsAppAckSent: false,
+        }
+      ];
+      inMemoryMissedCalls.set(key, calls);
+    }
     const ranked = rankMissedCalls(calls);
     res.json(ranked);
   } catch (err) {
@@ -195,13 +219,13 @@ router.post("/simulate-conflict", requireAuth, async (req: AuthRequest, res: Res
     const callAData = {
       ownerId,
       shopId,
-      shopName: shopName || "Involynk Outlet",
+      shopName: shopName || "Crust & Crumb Artisan Bakery",
       phoneNumber: phoneA || "+91 93539 02221",
-      callerName: callerNameA || "Vikram Malhotra (Corporate Bulk Buyer)",
+      callerName: callerNameA || "David Wilson (Wedding Tier Cake Order)",
       timestamp: "Just now (Contention @ T0)",
       priority: "P0" as const,
-      priorityReason: "Repeat Caller (2x Rings) + Bulk Intent",
-      priorityScore: 155,
+      priorityReason: "Repeat Caller (2x Rings) + 3-Tier Wedding Cake Intent",
+      priorityScore: 160,
       callCount: 2,
       status: "pending" as const,
       createdAt: arrivalTimestamp,
@@ -214,9 +238,9 @@ router.post("/simulate-conflict", requireAuth, async (req: AuthRequest, res: Res
     const callBData = {
       ownerId,
       shopId,
-      shopName: shopName || "Involynk Outlet",
+      shopName: shopName || "Crust & Crumb Artisan Bakery",
       phoneNumber: phoneB || "+91 84319 80422",
-      callerName: callerNameB || "Pooja Hegde (Festive Shopper)",
+      callerName: callerNameB || "Simran Kaur (Croissant Box Pre-Order)",
       timestamp: "Just now (Contention @ T0)",
       priority: "P0" as const,
       priorityReason: "Fresh Missed Call (<2m)",

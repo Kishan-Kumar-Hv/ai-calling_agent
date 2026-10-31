@@ -93,22 +93,22 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Fallback in-memory users when MongoDB Atlas network is unreachable (e.g. dynamic IP)
+// Single clean Bakery merchant account
 const fallbackUsers: Record<string, any> = {
   "kishankumarhv5@gmail.com": {
-    id: "6ae47e678e5904f51401b904",
+    id: "usr_bakery_01",
     name: "Kishan Kumar",
     email: "kishankumarhv5@gmail.com",
     phone: "+91 93539 02221",
-    businessName: "Involynk Dry Fruits & Retail",
+    businessName: "Crust & Crumb Artisan Bakery",
     role: "admin",
   },
   "admin@involynk.com": {
-    id: "6ae47e678e5904f51401b999",
-    name: "Super Admin",
+    id: "usr_bakery_01",
+    name: "Bakery Admin",
     email: "admin@involynk.com",
-    phone: "+91 84319 80422",
-    businessName: "Involynk Enterprise",
+    phone: "+91 93539 02221",
+    businessName: "Crust & Crumb Artisan Bakery",
     role: "super_admin",
   }
 };
@@ -196,7 +196,7 @@ router.get("/me", async (req, res) => {
         name: decoded.name || "Kishan Kumar",
         email: decoded.email || "kishankumarhv5@gmail.com",
         phone: "+91 93539 02221",
-        businessName: decoded.businessName || "Involynk",
+        businessName: decoded.businessName || "Crust & Crumb Artisan Bakery",
         role: decoded.role || "admin",
       });
       return;

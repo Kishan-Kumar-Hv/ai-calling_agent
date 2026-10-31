@@ -14,6 +14,58 @@ function memKey(ownerId: string, shopId: string) {
   return `${ownerId}_${shopId}`;
 }
 
+// Default sample bakery products
+const defaultBakeryProducts = [
+  {
+    id: "prod_b_01",
+    name: "Belgium Chocolate Truffle Cake (1kg)",
+    category: "Cakes & Desserts",
+    priceRetail: 1250,
+    priceWholesale: 999,
+    unit: "cake",
+    minOrderQty: 1,
+    stockStatus: "in_stock",
+    tags: ["bestseller", "birthday", "chocolate"],
+    description: "Rich dark Belgian chocolate ganache layered with moist sponge.",
+  },
+  {
+    id: "prod_b_02",
+    name: "Artisan Sourdough Loaf (400g)",
+    category: "Artisan Breads",
+    priceRetail: 220,
+    priceWholesale: 180,
+    unit: "loaf",
+    minOrderQty: 1,
+    stockStatus: "in_stock",
+    tags: ["organic", "sourdough", "fresh"],
+    description: "Naturally fermented 24-hour slow-rise sourdough loaf with crunchy crust.",
+  },
+  {
+    id: "prod_b_03",
+    name: "French Butter Croissant Box (Pack of 6)",
+    category: "Pastries & Croissants",
+    priceRetail: 480,
+    priceWholesale: 420,
+    unit: "box",
+    minOrderQty: 1,
+    stockStatus: "in_stock",
+    tags: ["breakfast", "french", "butter"],
+    description: "Flaky, buttery multi-layered authentic French croissants.",
+  },
+  {
+    id: "prod_b_04",
+    name: "Red Velvet Cream Cheese Jar Cake",
+    category: "Cakes & Desserts",
+    priceRetail: 199,
+    priceWholesale: 160,
+    unit: "jar",
+    minOrderQty: 1,
+    stockStatus: "in_stock",
+    tags: ["dessert", "red velvet"],
+    description: "Decadent red velvet crumb with smooth Philadelphia cream cheese frosting.",
+  }
+];
+
 // ─── 1. GET ALL PRODUCTS FOR A SHOP ──────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -32,7 +84,12 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     const key = memKey(ownerId, shopId);
-    res.json((inMemoryProducts.get(key) || []).filter((p) => p.isActive !== false));
+    let items = inMemoryProducts.get(key);
+    if (!items || items.length === 0) {
+      items = defaultBakeryProducts.map(p => ({ ...p, ownerId, shopId, isActive: true }));
+      inMemoryProducts.set(key, items);
+    }
+    res.json(items.filter((p) => p.isActive !== false));
   } catch (err) {
     console.error("[catalog] list error", err);
     res.status(500).json({ error: "Failed to retrieve catalog" });
@@ -58,6 +115,9 @@ router.get("/for-ai/:shopId", async (req, res: Response) => {
         found = items.filter((p) => p.isActive !== false);
         break;
       }
+    }
+    if (found.length === 0) {
+      found = defaultBakeryProducts;
     }
     res.json(found);
   } catch (err) {

@@ -87,27 +87,27 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
     // In-memory isolated store list
     let stores = inMemoryStores.get(ownerId);
     if (!stores || stores.length === 0) {
-      // Default sample store for this owner with Twilio enabled
+      // Single clean Artisan Bakery Store
       stores = [
         {
-          id: "6ae4f05f979babc314e06c24",
+          id: "shop_bakery_01",
           ownerId,
-          name: "Involynk Dry Fruits & Gourmet Retail",
-          category: "Dry Fruits & Spices",
+          name: "Crust & Crumb Artisan Bakery",
+          category: "Artisan Bakery & Patisserie",
           phone: "+91 93539 02221",
-          address: "Indiranagar 100ft Road, Bengaluru, Karnataka 560038",
-          operatingHours: "09:30 AM - 09:30 PM (IST)",
-          bannerImage: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=80",
+          address: "12th Main Road, HAL 2nd Stage, Indiranagar, Bengaluru 560038",
+          operatingHours: "09:30 AM - 07:30 PM (IST)",
+          bannerImage: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80",
           observedGaps: [
-            "High missed call rate during evening festival peak",
-            "No automated WhatsApp order callback during festival rush",
+            "High missed calls for custom birthday & wedding cakes during morning rush",
+            "No automated WhatsApp menu link sent to missed callers",
           ],
           aiSettings: {
             personaName: "Riya",
-            language: "hinglish",
-            tone: "Friendly & Empathetic",
+            language: "en-IN",
+            tone: "Professional, Warm & Welcoming",
             autoWhatsApp: true,
-            whatsappTemplate: "Hi {{name}}! Riya from {{shop_name}}. Sorry we missed your call. Here is our direct catalog: {{portfolio_url}}",
+            whatsappTemplate: "Hello {{name}}! Riya from {{shop_name}}. Sorry we missed your call. Here is our fresh artisan bakery menu and custom cake pre-order link: {{portfolio_url}}",
             transferNumber: "+91 93539 02221",
             maxRetries: 3,
             callPacingSeconds: 8,
@@ -119,10 +119,10 @@ router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
             enabled: true,
           },
           metrics: {
-            totalMissedRecovered: 142,
-            conversionRate: 68.4,
-            revenueSaved: "₹1,84,500",
-            avgLatencyMs: 340,
+            totalMissedRecovered: 84,
+            conversionRate: 74.2,
+            revenueSaved: "₹1,26,000",
+            avgLatencyMs: 310,
           },
         }
       ];
